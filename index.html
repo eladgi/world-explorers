@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>מגלי עולם – משחק גיאוגרפיה</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌍</text></svg>" />
+<link rel="preconnect" href="https://cdn.jsdelivr.net" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flag-icons@7.3.2/css/flag-icons.min.css" />
+<link rel="stylesheet" href="css/style.css?v=20" />
+</head>
+<body>
+
+<header class="app-header">
+  <button id="btn-home" class="btn-home" hidden>🏠 תפריט</button>
+  <h1 class="app-title">🌍 מגלי עולם</h1>
+  <div class="header-actions">
+    <button id="btn-help" class="btn-help" aria-label="הדרכה">❓</button>
+    <button id="btn-mute" class="btn-help" aria-label="השתקת צלילים">🔊</button>
+    <button id="btn-stars" class="btn-stars" aria-label="הדרכון שלי">⭐ 0</button>
+  </div>
+</header>
+
+<main id="app">
+
+  <section id="view-menu" class="view">
+    <p class="menu-intro">בחרו איך תרצו לגלות את העולם היום!</p>
+    <div class="mode-grid">
+      <button class="mode-card" data-mode="explore">
+        <span class="mode-emoji">🔎</span>
+        <span class="mode-name">גלו את העולם</span>
+        <span class="mode-desc">לחצו על מדינה וגלו עליה עובדות</span>
+      </button>
+      <button class="mode-card" data-mode="guess">
+        <span class="mode-emoji">🎯</span>
+        <span class="mode-name">נחשו את המדינה</span>
+        <span class="mode-desc">מצאו את המדינה הנכונה על המפה</span>
+      </button>
+      <button class="mode-card" data-mode="shapeguess">
+        <span class="mode-emoji">🧭</span>
+        <span class="mode-name">נחשו לפי הצורה</span>
+        <span class="mode-desc">רק קווי המתאר - מוצאים אותה על המפה</span>
+      </button>
+      <button class="mode-card" data-mode="flagmatch">
+        <span class="mode-emoji">🧩</span>
+        <span class="mode-name">התאימו דגלים</span>
+        <span class="mode-desc">התאימו כל דגל למדינה שלו</span>
+      </button>
+      <button class="mode-card" data-mode="capitalmatch">
+        <span class="mode-emoji">🏙️</span>
+        <span class="mode-name">התאימו בירות</span>
+        <span class="mode-desc">התאימו כל מדינה לבירה שלה</span>
+      </button>
+      <button class="mode-card" data-mode="trivia">
+        <span class="mode-emoji">❓</span>
+        <span class="mode-name">חידון גיאוגרפיה</span>
+        <span class="mode-desc">ענו נכון על שאלות מעניינות</span>
+      </button>
+    </div>
+  </section>
+
+  <section id="view-setup" class="view" hidden>
+    <h2 id="setup-title"></h2>
+    <p id="setup-subtitle" class="setup-subtitle"></p>
+    <div id="continent-chips" class="chip-row" role="group" aria-label="בחירת יבשת"></div>
+    <p class="setup-label">רמת קושי</p>
+    <div id="difficulty-chips" class="chip-row" role="group" aria-label="בחירת רמת קושי"></div>
+    <div id="practice-toggle-wrap" class="chip-row" hidden></div>
+    <button id="setup-start" class="btn-primary">בואו נתחיל! ▶</button>
+  </section>
+
+  <section id="view-explore" class="view" hidden></section>
+  <section id="view-guess" class="view" hidden></section>
+  <section id="view-shapeguess" class="view" hidden></section>
+  <section id="view-flagmatch" class="view" hidden></section>
+  <section id="view-capitalmatch" class="view" hidden></section>
+  <section id="view-trivia" class="view" hidden></section>
+  <section id="view-passport" class="view" hidden></section>
+
+</main>
+
+<footer class="app-footer">
+  <small>מפת העולם: מבוססת על SVG של simplemaps.com (רישיון MIT) · דגלים: flag-icons (רישיון MIT) · מספרי האוכלוסייה הם קירוב</small>
+</footer>
+
+<script src="assets/world-map.js?v=20"></script>
+<script src="js/data/countries.js?v=20"></script>
+<script src="js/worldmap.js?v=20"></script>
+<script src="js/audio.js?v=20"></script>
+<script src="js/progress.js?v=20"></script>
+<script src="js/polish.js?v=20"></script>
+<script src="js/tutorial.js?v=20"></script>
+<script src="js/explore.js?v=20"></script>
+<script src="js/guess.js?v=20"></script>
+<script src="js/shapeguess.js?v=20"></script>
+<script src="js/flagmatch.js?v=20"></script>
+<script src="js/capitalmatch.js?v=20"></script>
+<script src="js/trivia.js?v=20"></script>
+<script src="js/passport.js?v=20"></script>
+<script src="js/menu.js?v=20"></script>
+</body>
+</html>
