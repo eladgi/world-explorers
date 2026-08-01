@@ -51,6 +51,10 @@ step.
 - Flags: [flag-icons](https://github.com/lipis/flag-icons) (MIT license).
 - Population figures are approximate.
 
+## License
+
+MIT — see [`LICENSE`](LICENSE).
+
 ## For future development
 
 See [`CLAUDE.md`](CLAUDE.md) for architecture notes, project conventions,
