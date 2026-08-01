@@ -31,12 +31,41 @@ App.Mascot = (function () {
 // הקראת טקסט בעברית - עזר לילדים שעדיין לומדים לקרוא. אם הדפדפן לא תומך, פשוט לא עושה כלום.
 App.Speech = (function () {
   const supported = "speechSynthesis" in window;
+  let hebrewVoice = null;
+  let voicesReady = false;
+
+  // רשימת הקולות נטענת א-סינכרונית בחלק מהדפדפנים (בעיקר כרום בדסקטופ) - getVoices()
+  // יכול להחזיר מערך ריק בקריאה הראשונה, לפני שאירוע voiceschanged מתרחש. בוחרים קול
+  // עברי במפורש (ולא רק סומכים על utter.lang) כי חלק מהדפדפנים לא בוחרים קול לפי lang
+  // בעצמם, גם אם קול כזה מותקן.
+  function refreshHebrewVoice() {
+    if (!supported) return;
+    const voices = window.speechSynthesis.getVoices();
+    if (!voices.length) return;
+    voicesReady = true;
+    hebrewVoice = voices.find((v) => v.lang && v.lang.toLowerCase().startsWith("he")) || null;
+  }
+
+  if (supported) {
+    refreshHebrewVoice();
+    window.speechSynthesis.addEventListener("voiceschanged", refreshHebrewVoice);
+  }
 
   function speak(text) {
     if (!supported) return;
     window.speechSynthesis.cancel();
+
+    // אם רשימת הקולות כבר נטענה ואין אף קול עברי (למשל מחשב Windows בלי חבילת שפה
+    // עברית מותקנת) - אין טעם "לדבר" עם קול לועזי (הוא פשוט לא ישמיע כלום משמעותי
+    // לטקסט עברי), אז עדיף הודעה ברורה על כישלון שקט ובלתי מוסבר.
+    if (voicesReady && !hebrewVoice) {
+      if (window.App && App.Mascot) App.Mascot.say("😕 אין קול בעברית מותקן במחשב הזה", 3600);
+      return;
+    }
+
     const utter = new SpeechSynthesisUtterance(text);
     utter.lang = "he-IL";
+    if (hebrewVoice) utter.voice = hebrewVoice;
     utter.rate = 0.9;
     window.speechSynthesis.speak(utter);
   }
