@@ -148,7 +148,13 @@ main#app {
   gap: 8px;
   transition: transform 0.12s;
 }
-.mode-card:hover { transform: translateY(-4px); }
+/* @media (hover: hover) - לא רק "מסך מגע" יכול לגעת ב-:hover: בלי זה, ל-iOS Safari
+   אין דרך לדעת אם מגע מתכוון לרפרף או ללחוץ, אז הוא "מבזבז" את המגע הראשון על הדמיית
+   hover ורק מגע שני בפועל מפעיל את הקליק - נראה כאילו צריך ללחוץ פעמיים על כל אלמנט
+   עם כלל hover. הגבלת הכללים למכשירים עם עכבר/משטח מגע אמיתי פותרת את זה. */
+@media (hover: hover) {
+  .mode-card:hover { transform: translateY(-4px); }
+}
 .mode-card:active { transform: translateY(3px); box-shadow: none; }
 
 .mode-emoji { font-size: 3rem; }
@@ -245,6 +251,13 @@ main#app {
     height: 58vh;
     max-height: none;
   }
+  /* במצב "גלו את העולם" הלחיצה על המפה היא רק הצעד הראשון - עיקר התוכן (כרטיס העובדות)
+     מופיע מתחתיה, אז נותנים למפה פחות גובה כדי שיהיה פחות גלילה עד אליו (בנוסף לגלילה
+     האוטומטית אחרי בחירת מדינה, ר' explore.js). שאר המצבים (ניחוש/צורה וכו') משאירים
+     58vh כי המפה שם היא הפעולה המרכזית, לא רק שלב ביניים. */
+  #explore-map .world-map-svg {
+    height: 38vh;
+  }
 }
 
 .world-map-svg path {
@@ -259,7 +272,9 @@ main#app {
   cursor: pointer;
   transition: fill 0.15s;
 }
-.country:hover { fill: #94cf88; }
+@media (hover: hover) {
+  .country:hover { fill: #94cf88; }
+}
 .country.dimmed { fill: #e4e9e6; pointer-events: none; }
 .country.selected { fill: var(--color-accent); }
 .country.correct { fill: var(--color-success); }

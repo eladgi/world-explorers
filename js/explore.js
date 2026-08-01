@@ -81,6 +81,12 @@ App.Explore = (function () {
     neighborIds.forEach((b) => App.Map.setLabel(b, COUNTRIES_BY_ID[b].name_he));
     renderInfo(country);
 
+    // גוללים אוטומטית עד כרטיס העובדות - בלי זה, במובייל צריך לגלול ידנית מתחת למפה כדי
+    // לראות אותו בכלל. "nearest" ולא "start" כדי לא לזוז בכלל אם הכרטיס כבר גלוי במלואו
+    // (למשל במסך רחב).
+    const infoBox = document.getElementById("explore-info");
+    if (infoBox) infoBox.scrollIntoView({ behavior: "smooth", block: "nearest" });
+
     if (currentChallenge && currentChallenge.check(country)) {
       App.Audio.success();
       App.Confetti.burst();
