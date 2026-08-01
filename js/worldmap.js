@@ -225,12 +225,30 @@ App.Map = (function () {
   }
 
   function onPointerUp(e) {
+    // טאפ בודד (לא גרירה/צביטה) במגע: מפעילים את הבחירה ישירות מכאן במקום לסמוך על
+    // ה-click הסינתטי שהדפדפן אמור לירות אחרי pointerup. בשילוב עם touch-action:none
+    // וטיפול מגע מותאם אישית (לצורך פינץ'/גרירה), חלק ממכשירי אנדרואיד לפעמים "בולעים"
+    // את ה-click הראשון בכל רינדור טרי של ה-SVG - נראה כאילו צריך ללחוץ פעמיים כדי
+    // שהמדינה תיבחר. מגבילים ל-pointerType==="touch" בלבד כדי לא לשנות שום התנהגות
+    // בעכבר (שם ה-click הרגיל כבר עובד טוב).
+    const wasSingleTouch = e.pointerType === "touch" && activePointers.size === 1 && !!dragStart;
+
     activePointers.delete(e.pointerId);
     if (activePointers.size < 2) pinchStart = null;
     if (activePointers.size < 1) dragStart = null;
+
     if (moved) {
       suppressNextClick = true;
       moved = false;
+      return;
+    }
+
+    if (wasSingleTouch && clickHandler) {
+      const el = e.target.closest && e.target.closest(".country");
+      if (el && !el.classList.contains("dimmed")) {
+        suppressNextClick = true; // מונע הפעלה כפולה אם ה-click הרגיל בכל זאת יורה אחרי זה
+        clickHandler(el.id, el);
+      }
     }
   }
 
