@@ -14,10 +14,12 @@ disconnected cluster).
 import math
 
 GAP_THRESHOLD_DEG = 8.0  # tuned: bridges real inter-island gaps, not continental colonial distances
-MIN_VISIBLE_PX = 1.0  # a kept secondary part smaller than this after projection
-# is sub-pixel noise at this map's scale - drop it (never drops the anchor
-# itself, even if tiny, e.g. Malta's whole old-map footprint is only ~2px
-# across - deleting a real gameplay country is worse than keeping it small)
+MIN_VISIBLE_PX = 2.0  # a kept secondary part whose max dimension is smaller
+# than this after projection reads as a stray dot, not a recognizable island,
+# at this map's scale - drop it (never drops the anchor itself, even if tiny,
+# e.g. Malta's whole old-map footprint is only ~2px across - deleting a real
+# gameplay country is worse than keeping it small). Raised from 1.0 after
+# specks were found sitting in South India and northern China at 1.0.
 
 
 def parts_of(geom):

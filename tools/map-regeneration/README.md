@@ -71,13 +71,45 @@ reading before touching this code again:**
      secondary island rings too, or archipelago countries' many close
      islands start overlapping each other.**
 
+4. **A later session reported small countries sitting inside the wrong
+   neighbor** (Singapore inside Cambodia, São Tomé and Príncipe inside
+   Nigeria) **plus stray "dot" artifacts** (a sub-pixel sliver ring in south
+   India, another in northern China). Two separate causes:
+   - The `generate_map.py` code already *had* the correct fix (repositioning
+     via each country's own Natural-Earth-derived centroid, not the stale
+     old-map bbox), but the pipeline had apparently been re-run at some
+     point after the round-3 commit and its output was never actually
+     re-applied to `assets/world-map.svg` — roughly 150 small
+     countries/territories (mostly island nations and `land-other`
+     territories) were left at positions from an earlier, less-correct run,
+     some over 150px off in this map's coordinate space. **Confirmed by
+     projecting each country's real-world lon/lat through the current
+     `global_transform` directly and comparing to both the committed and
+     regenerated positions** — not just eyeballing it, since most of these
+     countries have no land borders and so aren't caught by
+     `check_border_continuity`. **Lesson: after changing anything in this
+     pipeline, always diff the regenerated output against the currently
+     *committed* file and re-apply — a correct fix sitting only in `.work/`
+     helps no one.**
+   - `MIN_VISIBLE_PX` (in `ring_select.py`) was `1.0`, letting through
+     secondary island rings whose projected bbox was just over 1px in its
+     *largest* dimension while near-zero in the other — real, but
+     rendering as a meaningless speck rather than a recognizable shape.
+     Raised to `2.0`. This is a judgment call, not a correctness bug: real
+     archipelago nations (Indonesia, Philippines, Solomon Islands, Bahamas,
+     etc.) still legitimately keep plenty of sub-2px islands after this
+     change, since the threshold only drops parts smaller than that, never
+     the anchor/primary shape.
+
 **Standing lesson**: verify with a more skeptical eye than "the specific bug
 just reported is fixed." Every round above fixed exactly the reported
 symptom while a different bug of the same general class was already present
 or got introduced by the fix itself. Before trusting a regenerated map: a
 whole-world screenshot, several regional screenshots, `verify_map.py`'s
-border-distance check across *all* real neighbor pairs, and its self-overlap
-check — not just the one thing someone happened to notice.
+border-distance check across *all* real neighbor pairs, its self-overlap
+check, AND a diff of regenerated vs. currently-committed positions (small
+countries with no land borders won't show up in the border-distance check
+at all) — not just the one thing someone happened to notice.
 
 ## Prerequisites
 
