@@ -215,7 +215,7 @@ function formatPopulation(millions) {
   }
   if (millions < 1) {
     const thousands = Math.round(millions * 1000);
-    return thousands.toLocaleString("he-IL") + " תושבים (בערך)";
+    return thousands.toLocaleString("he-IL") + " אלף תושבים (בערך)";
   }
   return millions.toLocaleString("he-IL", { maximumFractionDigits: 1 }) + " מיליון תושבים (בערך)";
 }
