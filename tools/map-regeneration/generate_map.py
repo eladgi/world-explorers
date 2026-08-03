@@ -30,6 +30,7 @@ MIN_PTS, MAX_PTS = 50, 180
 POINT_MULTIPLIER = 3
 HARD_CEILING = 900  # true safety valve for genuinely huge/complex countries, not a normal target
 BORDER_BUFFER_PX = 0.8
+BUFFER_SIZE_FRACTION = 0.05  # caps the border buffer for small shapes - see buffer_close_gaps
 AREA_OVERLAP_EPS = 0.02  # px^2 - numerical-noise floor, not a "is this a real problem" threshold
 
 LAND_OTHER_IDS = ['ad', 'ag', 'ai', 'aw', 'bb', 'bm', 'cw', 'eh', 'fj', 'fo', 'gd', 'gf',
@@ -192,7 +193,7 @@ def simplify_rings_to_budget(rings_px, target_max):
 
 
 def buffer_close_gaps(rings_px):
-    """Expands only the PRIMARY (mainland) ring by a small fixed amount so
+    """Expands only the PRIMARY (mainland) ring by a small amount so
     sub-pixel-to-low-single-digit-pixel gaps from independent simplification
     (two neighbors technically touch somewhere but diverge elsewhere, e.g.
     Pakistan-China) get covered - a slight overlap between two opaque
@@ -200,7 +201,16 @@ def buffer_close_gaps(rings_px):
     buffer secondary rings: doing so uniformly caused archipelago countries
     (Australia, Canada, Philippines, Greece...) to have their many close
     islands start overlapping EACH OTHER. Real international borders are
-    overwhelmingly on the mainland shape anyway."""
+    overwhelmingly on the mainland shape anyway.
+
+    The buffer amount is capped relative to the ring's own size
+    (BUFFER_SIZE_FRACTION of its smaller bbox dimension), not applied as
+    the flat BORDER_BUFFER_PX for every country - a flat 0.8px buffer is
+    negligible for a normal-sized country but was a large fraction of a
+    tiny one's own footprint, visibly swallowing small enclaved/microstate
+    countries into a bigger buffered neighbor (West Bank into Jordan,
+    Liechtenstein into Switzerland, Andorra into France/Spain, Brunei into
+    Malaysia, Luxembourg into France/Belgium/Germany)."""
     if not rings_px:
         return rings_px
     out = [rings_px[0]]
@@ -208,7 +218,10 @@ def buffer_close_gaps(rings_px):
         poly = Polygon(rings_px[0])
         if not poly.is_valid:
             poly = poly.buffer(0)
-        buffered = poly.buffer(BORDER_BUFFER_PX, resolution=1, join_style=2)
+        minx, miny, maxx, maxy = poly.bounds
+        min_dim = min(maxx - minx, maxy - miny)
+        effective_buffer = min(BORDER_BUFFER_PX, min_dim * BUFFER_SIZE_FRACTION)
+        buffered = poly.buffer(effective_buffer, resolution=1, join_style=2)
         if not buffered.is_empty:
             if buffered.geom_type == 'MultiPolygon':
                 buffered = max(buffered.geoms, key=lambda g: g.area)
@@ -329,7 +342,46 @@ def process_all():
     return final_rings, old_bboxes
 
 
-def process_land_other():
+def clip_land_other_against_gameplay(rings, gameplay_polys):
+    """Land-other territories are non-interactive/decorative; if their
+    buffered primary ring (or a GAMEPLAY neighbor's own buffer) ends up
+    overlapping a real, clickable country, trim it back - a slightly
+    larger gap on a decorative territory (never checked or monitored by
+    verify_map.py, since it has no `borders` entry) is far less bad than a
+    real country visually swallowing part of a small territory wedged
+    between two of them. Found on West Bank overlapping Jordan/Israel,
+    Liechtenstein overlapping Switzerland/Austria, Andorra overlapping
+    Spain/France - all confirmed ZERO overlap in raw Natural Earth data,
+    so any overlap here is purely a buffering artifact, safe to remove."""
+    if not rings:
+        return rings
+    try:
+        primary = Polygon(rings[0])
+        if not primary.is_valid:
+            primary = primary.buffer(0)
+    except Exception:
+        return rings
+    bx = primary.bounds
+    for gpoly in gameplay_polys.values():
+        gbx = gpoly.bounds
+        if bx[2] < gbx[0] or gbx[2] < bx[0] or bx[3] < gbx[1] or gbx[3] < bx[1]:
+            continue
+        if primary.intersects(gpoly):
+            try:
+                primary = primary.difference(gpoly)
+                if primary.geom_type == 'MultiPolygon':
+                    primary = max(primary.geoms, key=lambda g: g.area)
+            except Exception:
+                pass
+    if primary.is_empty or primary.geom_type != 'Polygon':
+        return rings
+    pts = list(primary.exterior.coords)
+    if pts[0] == pts[-1]:
+        pts = pts[:-1]
+    return [pts] + rings[1:]
+
+
+def process_land_other(gameplay_final_rings):
     """Lighter-weight pass for the 32 non-gameplay territories - reprojected
     through the SAME global transform so they stay seamlessly aligned with
     their gameplay neighbors (otherwise e.g. Western Sahara would gap
@@ -344,6 +396,17 @@ def process_land_other():
         if iso and iso not in ('-99', '') and iso in LAND_OTHER_IDS and iso not in by_iso:
             by_iso[iso] = {'type': feat['geometry']['type'], 'coordinates': feat['geometry']['coordinates']}
 
+    gameplay_polys = {}
+    for gcid, grings in gameplay_final_rings.items():
+        try:
+            gp = Polygon(grings[0])
+            if not gp.is_valid:
+                gp = gp.buffer(0)
+            if not gp.is_empty and gp.geom_type == 'Polygon':
+                gameplay_polys[gcid] = gp
+        except Exception:
+            pass
+
     final = {}
     for cid, entry in by_iso.items():
         parts, kept_idxs, _anchor = select_kept_parts(entry)
@@ -351,11 +414,12 @@ def process_land_other():
         old_pc = old_bboxes[cid]['num_points']
         if sum(len(r) for r in raw_rings) < old_pc:
             new_cx, new_cy = combined_centroid_px(parts, kept_idxs)
-            final[cid] = reposition_old_shape(cid, old_bboxes, new_cx, new_cy)
-            continue
-        target_max = max(20, min(80, old_pc * 2))
-        rings = simplify_rings_to_budget(raw_rings, target_max)
-        final[cid] = buffer_close_gaps(rings)
+            rings = reposition_old_shape(cid, old_bboxes, new_cx, new_cy)
+        else:
+            target_max = max(20, min(80, old_pc * 2))
+            rings = simplify_rings_to_budget(raw_rings, target_max)
+            rings = buffer_close_gaps(rings)
+        final[cid] = clip_land_other_against_gameplay(rings, gameplay_polys)
 
     # 6 small French departments (French Guiana, Guadeloupe, Martinique,
     # Réunion, Mayotte) plus the Canary Islands aren't present as separate
@@ -363,7 +427,8 @@ def process_land_other():
     # existing shape only, using a manual approximate lon/lat
     unresolved = [cid for cid in LAND_OTHER_IDS if cid not in by_iso]
     for cid in unresolved:
-        final[cid] = reposition_unresolved(cid, old_bboxes)
+        rings = reposition_unresolved(cid, old_bboxes)
+        final[cid] = clip_land_other_against_gameplay(rings, gameplay_polys)
     return final, unresolved
 
 
@@ -391,7 +456,7 @@ if __name__ == '__main__':
     final_rings, old_bboxes = process_all()
     print(f'gameplay countries regenerated: {len(final_rings)}')
 
-    land_other_rings, unresolved = process_land_other()
+    land_other_rings, unresolved = process_land_other(final_rings)
     print(f'land-other regenerated: {len(land_other_rings)}, position-corrected only (no NE data): {unresolved}')
 
     all_rings = {**final_rings, **land_other_rings}

@@ -150,6 +150,44 @@ cp .work/world-map-OUTPUT.svg ../../assets/world-map.svg
 # and bump the ?v=N cache-busting query string in index.html
 ```
 
+5. **A later session reported the West Bank visibly overlapping into
+   Jordan's territory**, and separately, that small enclaved territories
+   (Liechtenstein, Andorra) looked mostly swallowed by their bigger
+   neighbors. Root cause: `buffer_close_gaps`'s flat `BORDER_BUFFER_PX`
+   (0.8px) is negligible for a normal-sized country but is a huge fraction
+   of a *tiny* one's own footprint — and worse, when two BIG neighbors
+   both buffer toward each other (e.g. Switzerland and Austria, which
+   share a real border), their buffered shapes can overlap each other
+   right where a tiny third territory (Liechtenstein) sits between them,
+   swallowing it regardless of its own buffer. Confirmed the raw,
+   unprocessed Natural Earth geometry for these pairs has **zero**
+   overlap, so any overlap in the output is purely a buffering artifact,
+   not a real data/alignment issue (unlike the Brazil-hole or Somaliland
+   cases in round 3). Two-part fix:
+   - `BORDER_BUFFER_PX` is now capped at `BUFFER_SIZE_FRACTION` (12%→5%,
+     tuned down after the first pass barely moved West Bank) of a
+     shape's own smaller bbox dimension, so tiny shapes get a
+     proportionally tiny buffer instead of the same flat amount as Russia.
+   - Land-other territories (non-interactive, no `borders` entry, so
+     `verify_map.py` never checks their border quality at all) are now
+     clipped (`clip_land_other_against_gameplay`) against every nearby
+     already-finalized GAMEPLAY country's shape *after* buffering, in
+     `process_land_other` — gameplay countries are always finalized
+     first, so this is a one-directional, order-safe post-pass. This
+     fully resolved West Bank/Jordan and West Bank/Israel (overlap ~0
+     after, down from a third of West Bank's own area). It could **not**
+     fully resolve Liechtenstein/Andorra, because they're so tiny that
+     clipping them against even one full neighbor leaves nothing — the
+     fallback in that case is to leave the shape as the fraction-capped
+     buffer produced, not to erase it (never drop a real territory to
+     zero, same principle as the anchor-part rule in `select_kept_parts`).
+     This is a pre-existing characteristic of the original pre-Natural-
+     Earth map too (already ~90-100% overlapped before any of this
+     session's changes), not a new regression, and both are non-
+     interactive decorative territories rather than real neighbor
+     countries — lower stakes than a real, clickable country like Jordan
+     visibly rendering wrong.
+
 ## Files
 
 | File | Purpose |
