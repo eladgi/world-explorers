@@ -1,9 +1,17 @@
-// מסך "הדרכון שלי": אלבום מדבקות - דגלים מקובצים ליבשות, דהויים עד שמתחילים ללמוד עליהם
-// ומוזהבים כשמשלימים אותם (3 כוכבים), במקום רשימת טקסט ארוכה שקשה לסרוק.
+// מסך "הדרכון שלי": אלבום מדבקות - דגלים מקובצים ליבשות, עם פס התקדמות לכל יבשת,
+// דהויים עד שמתחילים ללמוד עליהם ומוזהבים כשמשלימים אותם (3 כוכבים).
 window.App = window.App || {};
 
 App.Passport = (function () {
   const ROOT_ID = "view-passport";
+  const CONTINENT_EMOJI = {
+    אפריקה: "🦁",
+    אסיה: "🐼",
+    אירופה: "🏰",
+    "צפון אמריקה": "🗽",
+    "דרום אמריקה": "🌴",
+    אוקיאניה: "🦘",
+  };
   let resetArmed = false;
 
   function starsHtml(n) {
@@ -31,10 +39,8 @@ App.Passport = (function () {
       )
       .join("");
     return `
-      <div class="passport-badges">
-        <h3>🏅 תגים</h3>
-        <div class="badge-grid">${items}</div>
-      </div>`;
+      <h3 class="passport-section-title">🏅 מדליות</h3>
+      <div class="badge-grid">${items}</div>`;
   }
 
   function render() {
@@ -46,6 +52,7 @@ App.Passport = (function () {
     const sections = CONTINENTS.map((continent) => {
       const list = COUNTRIES.filter((c) => c.continent === continent);
       const continentMastered = list.filter((c) => App.Progress.getStars(c.id) >= 3).length;
+      const pct = Math.round((continentMastered / list.length) * 100);
       const stickers = list
         .map((c) => {
           const stars = App.Progress.getStars(c.id);
@@ -59,7 +66,12 @@ App.Passport = (function () {
         .join("");
       return `
         <div class="passport-continent">
-          <h3>${continent} <span class="passport-continent-count">${continentMastered}/${list.length}</span></h3>
+          <div class="passport-continent-head">
+            <span class="passport-continent-emoji">${CONTINENT_EMOJI[continent] || "🌎"}</span>
+            <h3>${continent}</h3>
+            <span class="passport-continent-count">${continentMastered}/${list.length}</span>
+            <span class="passport-bar"><i style="width:${pct}%"></i></span>
+          </div>
           <div class="passport-list">${stickers}</div>
         </div>`;
     }).join("");
@@ -68,8 +80,13 @@ App.Passport = (function () {
       <div class="passport-summary">
         <div class="passport-summary-emoji">🎒</div>
         <div class="passport-summary-text">
-          <div>${mastered} מתוך ${total} מדינות נלמדו לגמרי</div>
-          <div>⭐ סה"כ ${totalStars} כוכבים</div>
+          <h1>הדרכון שלי</h1>
+          <p>${mastered} מתוך ${total} מדינות הושלמו · ⭐ ${totalStars} כוכבים</p>
+        </div>
+        <div class="passport-stats">
+          <div class="passport-stat"><b>${totalStars}</b><span>⭐ כוכבים</span></div>
+          <div class="passport-stat"><b>${mastered}</b><span>🏅 הושלמו</span></div>
+          <div class="passport-stat"><b>${App.Progress.getBestStreak()}</b><span>🔥 רצף שיא</span></div>
         </div>
       </div>
       ${badgesHtml()}
@@ -92,6 +109,7 @@ App.Passport = (function () {
     }
     App.Progress.resetProgress();
     render();
+    App.Menu.updateStarsBadge();
   }
 
   return { render };

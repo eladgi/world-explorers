@@ -1,4 +1,5 @@
 // מצב "נחשו את המדינה": מציגים דגל+שם, הילד/ה לוחצ/ת על המדינה הנכונה במפה.
+// ההנחיה יושבת בפאנל צדדי (מעל המפה בטלפון, לצידה במסך רחב) כדי שהמפה תישאר גדולה.
 window.App = window.App || {};
 
 App.Guess = (function () {
@@ -12,6 +13,7 @@ App.Guess = (function () {
   let maxMisses = 3;
   let hintLevel = 0;
   let locked = false;
+  let streak = 0;
   let currentContinent = "world";
   let currentDifficulty = "בינוני";
   let currentPracticeWeak = false;
@@ -28,27 +30,30 @@ App.Guess = (function () {
     order = shuffle(pool).slice(0, total);
     idx = 0;
     score = 0;
+    streak = 0;
     locked = false;
 
     document.getElementById(ROOT_ID).innerHTML = `
-      <div class="game-topbar">
-        <span class="badge">🎯 נחשו את המדינה</span>
-        <span class="badge" id="guess-progress"></span>
-        <span class="badge" id="guess-score"></span>
-        <span class="badge" id="guess-tries"></span>
-        <span class="badge badge-streak" id="guess-streak" hidden></span>
-      </div>
-      <div class="prompt-card">
-        <div class="prompt-flag" id="guess-flag"></div>
-        <div class="prompt-name">
-          <span id="guess-name"></span>
-          ${App.Speech.isSupported() ? '<button class="btn-speak" id="guess-speak-btn" aria-label="הקריאו את שם המדינה">🔊</button>' : ""}
+      <div id="guess-hud"></div>
+      <div class="game-cols">
+        <div class="game-side">
+          <div class="panel centered">
+            <div class="prompt-label">מצאו את המדינה הזו על המפה</div>
+            <div class="prompt-flag" id="guess-flag"></div>
+            <div class="prompt-name-row">
+              <span class="prompt-name" id="guess-name"></span>
+              ${App.Speech.isSupported() ? '<button class="btn-speak" id="guess-speak-btn" aria-label="הקריאו את שם המדינה">🔊</button>' : ""}
+            </div>
+            <button class="btn-hint" id="guess-hint-btn">💡 קבלו רמז</button>
+            <div class="hint-list" id="guess-hint-text"></div>
+          </div>
+          <div class="panel panel-note">אפשר לגרור את המפה ולהתקרב בשתי אצבעות (או בגלגלת) לפני שלוחצים.</div>
         </div>
-        <button class="btn-hint" id="guess-hint-btn">💡 קבלו רמז</button>
-        <div class="hint-text" id="guess-hint-text"></div>
+        <div class="game-main">
+          <div class="map-container" id="guess-map"></div>
+          <div class="feedback-msg" id="guess-feedback"></div>
+        </div>
       </div>
-      <div class="feedback-msg" id="guess-feedback"></div>
-      <div class="map-container" id="guess-map"></div>
     `;
 
     App.Map.render(document.getElementById("guess-map"));
@@ -60,6 +65,21 @@ App.Guess = (function () {
 
     App.Mascot.say("מוכנים? מצאו את המדינה על המפה! 🗺️");
     nextRound();
+  }
+
+  function renderHud() {
+    document.getElementById("guess-hud").innerHTML = App.Menu.hudHtml({
+      id: "guess-hud-bar",
+      emoji: "🎯",
+      title: "נחשו את המדינה",
+      total: order.length,
+      idx: Math.min(idx, order.length - 1),
+      roundLabel: `שאלה ${Math.min(idx + 1, order.length)} מתוך ${order.length}`,
+      hearts: App.Menu.heartsHtml(maxMisses - misses, maxMisses),
+      pills: [`⭐ ${score}`],
+      streakId: "guess-streak",
+      streak: streak,
+    });
   }
 
   function nextRound() {
@@ -76,15 +96,12 @@ App.Guess = (function () {
     if (idx >= order.length) return endGame();
 
     const country = order[idx];
-    document.getElementById("guess-progress").textContent = `שאלה ${idx + 1} מתוך ${order.length}`;
-    document.getElementById("guess-score").textContent = `ניקוד: ${score}`;
-    document.getElementById("guess-tries").textContent = `ניסיונות שנותרו: ${maxMisses - misses}`;
+    renderHud();
     document.getElementById("guess-flag").innerHTML = flagHtml(country.id);
     document.getElementById("guess-name").textContent = country.name_he;
 
     const hintBtn = document.getElementById("guess-hint-btn");
     hintBtn.disabled = false;
-    hintBtn.hidden = false;
     hintBtn.textContent = "💡 קבלו רמז";
     document.getElementById("guess-hint-text").innerHTML = "";
   }
@@ -112,16 +129,6 @@ App.Guess = (function () {
     }
   }
 
-  function updateStreakBadge(streak) {
-    const el = document.getElementById("guess-streak");
-    if (streak >= 2) {
-      el.hidden = false;
-      el.textContent = `🔥 רצף: ${streak}`;
-    } else {
-      el.hidden = true;
-    }
-  }
-
   function onCountryClick(id) {
     if (locked || idx >= order.length) return;
     const country = order[idx];
@@ -132,25 +139,25 @@ App.Guess = (function () {
       App.Map.setState(id, "correct");
       App.Map.setLabel(id, country.name_he);
       App.Audio.success();
-      const streak = App.Progress.recordAnswer(country.id, true);
-      updateStreakBadge(streak);
+      streak = App.Progress.recordAnswer(country.id, true);
+      score++;
+      renderHud();
       if (streak > 0 && streak % 3 === 0) {
         App.Audio.milestoneFlourish();
         App.Confetti.burst();
         App.Mascot.say(`רצף מדהים! ${streak} נכונות ברצף! 🔥`);
       }
-      fb.textContent = "כל הכבוד! 🎉";
+      fb.textContent = `כל הכבוד! זו ${country.name_he}! 🎉`;
       fb.className = "feedback-msg good";
-      score++;
       idx++;
-      setTimeout(nextRound, 1000);
+      setTimeout(nextRound, 1100);
       return;
     }
 
     misses++;
     App.Progress.recordAnswer(country.id, false);
-    updateStreakBadge(0);
-    document.getElementById("guess-tries").textContent = `ניסיונות שנותרו: ${Math.max(maxMisses - misses, 0)}`;
+    streak = 0;
+    renderHud();
     App.Map.setState(id, "wrong");
     App.Audio.fail();
     setTimeout(() => App.Map.removeState(id, "wrong"), 400);
@@ -163,7 +170,7 @@ App.Guess = (function () {
       App.Map.setLabel(country.id, country.name_he);
       document.getElementById("guess-hint-btn").disabled = true;
       idx++;
-      setTimeout(nextRound, 1600);
+      setTimeout(nextRound, 1700);
     } else {
       fb.textContent = "לא בדיוק, נסו שוב! 🤔";
       fb.className = "feedback-msg bad";
@@ -176,8 +183,10 @@ App.Guess = (function () {
     App.Mascot.say(ratio >= 0.8 ? "כל הכבוד, ידע מעולה על העולם! 🌟" : "יפה מאוד, ממשיכים להתאמן! 💪");
     document.getElementById(ROOT_ID).innerHTML = `
       <div class="end-screen">
-        <div class="end-emoji">🏆</div>
-        <div class="end-score">ניקוד: ${score} מתוך ${order.length}</div>
+        <div class="end-emoji">${ratio === 1 ? "🏆" : ratio >= 0.6 ? "🎉" : "💪"}</div>
+        <h2 class="end-title">${ratio >= 0.8 ? "מגלי עולם אמיתיים!" : "סיבוב טוב!"}</h2>
+        <p class="end-score">ניקוד: ${score} מתוך ${order.length}</p>
+        <p class="end-sub">${ratio === 1 ? "כל התשובות נכונות – מושלם!" : "כל תשובה נכונה הוסיפה כוכב לדרכון שלכם."}</p>
         <div id="guess-end-actions"></div>
       </div>
     `;

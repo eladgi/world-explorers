@@ -1,14 +1,17 @@
-// מצב "חידון גיאוגרפיה": שאלות אמריקאיות (4 ברירות) מסוגים שונים.
+// מצב "חידון גיאוגרפיה": שאלות אמריקאיות (4 ברירות) מסוגים שונים, עם אות לכל תשובה
+// כדי שיהיה קל להצביע ולדבר עליהן בכיתה.
 window.App = window.App || {};
 
 App.Trivia = (function () {
   const ROOT_ID = "view-trivia";
   const TOTAL = 10;
+  const LETTERS = ["א", "ב", "ג", "ד"];
 
   let pool = [];
   let questions = [];
   let idx = 0;
   let score = 0;
+  let streak = 0;
   let locked = false;
   let currentContinent = "world";
   let currentDifficulty = "בינוני";
@@ -80,17 +83,13 @@ App.Trivia = (function () {
     questions = subjectPool.map((country) => Object.assign(buildQuestion(country), { country }));
     idx = 0;
     score = 0;
+    streak = 0;
     locked = false;
 
     document.getElementById(ROOT_ID).innerHTML = `
-      <div class="game-topbar">
-        <span class="badge">❓ חידון גיאוגרפיה</span>
-        <span class="badge" id="tv-progress"></span>
-        <span class="badge" id="tv-score"></span>
-        <span class="badge badge-streak" id="tv-streak" hidden></span>
-      </div>
-      <div class="prompt-card">
-        <div class="prompt-flag" id="tv-flag"></div>
+      <div id="tv-hud"></div>
+      <div class="panel trivia-card">
+        <div class="trivia-flag" id="tv-flag"></div>
         <div class="trivia-question" id="tv-question"></div>
       </div>
       <div class="trivia-options" id="tv-options"></div>
@@ -101,14 +100,29 @@ App.Trivia = (function () {
     renderQuestion();
   }
 
+  function renderHud() {
+    document.getElementById("tv-hud").innerHTML = App.Menu.hudHtml({
+      id: "tv-hud-bar",
+      emoji: "❓",
+      title: "חידון גיאוגרפיה",
+      total: questions.length,
+      idx: Math.min(idx, questions.length - 1),
+      roundLabel: `שאלה ${Math.min(idx + 1, questions.length)} מתוך ${questions.length}`,
+      pills: [`⭐ ${score}`],
+      streakId: "tv-streak",
+      streak: streak,
+    });
+  }
+
   function renderQuestion() {
     locked = false;
     if (idx >= questions.length) return endGame();
 
     const q = questions[idx];
-    document.getElementById("tv-progress").textContent = `שאלה ${idx + 1} מתוך ${questions.length}`;
-    document.getElementById("tv-score").textContent = `ניקוד: ${score}`;
-    document.getElementById("tv-flag").innerHTML = q.flagId ? flagHtml(q.flagId) : "";
+    renderHud();
+    const flagBox = document.getElementById("tv-flag");
+    flagBox.innerHTML = q.flagId ? flagHtml(q.flagId) : "";
+    flagBox.hidden = !q.flagId;
     document.getElementById("tv-question").textContent = q.text;
 
     const fb = document.getElementById("tv-feedback");
@@ -117,23 +131,17 @@ App.Trivia = (function () {
 
     const box = document.getElementById("tv-options");
     box.innerHTML = "";
-    q.options.forEach((opt) => {
+    q.options.forEach((opt, i) => {
       const btn = document.createElement("button");
       btn.className = "trivia-option";
-      btn.textContent = opt.label;
+      btn.innerHTML = `
+        <span class="trivia-letter">${LETTERS[i]}</span>
+        <span class="trivia-label">${opt.label}</span>
+        <span class="trivia-mark"></span>
+      `;
       btn.addEventListener("click", () => onAnswer(btn, opt));
       box.appendChild(btn);
     });
-  }
-
-  function updateStreakBadge(streak) {
-    const el = document.getElementById("tv-streak");
-    if (streak >= 2) {
-      el.hidden = false;
-      el.textContent = `🔥 רצף: ${streak}`;
-    } else {
-      el.hidden = true;
-    }
   }
 
   function onAnswer(btn, opt) {
@@ -146,10 +154,11 @@ App.Trivia = (function () {
 
     if (opt.correct) {
       btn.classList.add("correct");
+      btn.querySelector(".trivia-mark").textContent = "✅";
       score++;
       App.Audio.success();
-      const streak = App.Progress.recordAnswer(q.country.id, true);
-      updateStreakBadge(streak);
+      streak = App.Progress.recordAnswer(q.country.id, true);
+      renderHud();
       if (streak > 0 && streak % 3 === 0) {
         App.Audio.milestoneFlourish();
         App.Confetti.burst();
@@ -159,17 +168,22 @@ App.Trivia = (function () {
       fb.className = "feedback-msg good";
     } else {
       btn.classList.add("wrong");
+      btn.querySelector(".trivia-mark").textContent = "❌";
       App.Audio.fail();
       App.Progress.recordAnswer(q.country.id, false);
-      updateStreakBadge(0);
+      streak = 0;
+      renderHud();
       fb.textContent = "לא נכון... 🤔";
       fb.className = "feedback-msg bad";
       const correctIdx = q.options.findIndex((o) => o.correct);
-      if (correctIdx >= 0) buttons[correctIdx].classList.add("correct");
+      if (correctIdx >= 0) {
+        buttons[correctIdx].classList.add("correct");
+        buttons[correctIdx].querySelector(".trivia-mark").textContent = "✅";
+      }
     }
 
     idx++;
-    setTimeout(renderQuestion, 1400);
+    setTimeout(renderQuestion, 1500);
   }
 
   function endGame() {
@@ -178,8 +192,10 @@ App.Trivia = (function () {
     App.Mascot.say(ratio >= 0.8 ? "מוח גיאוגרפי אמיתי! כל הכבוד! 🌟" : "יופי של ניסיון, ממשיכים ללמוד! 💪");
     document.getElementById(ROOT_ID).innerHTML = `
       <div class="end-screen">
-        <div class="end-emoji">🏆</div>
-        <div class="end-score">ניקוד: ${score} מתוך ${questions.length}</div>
+        <div class="end-emoji">${ratio === 1 ? "🏆" : ratio >= 0.6 ? "🎉" : "💪"}</div>
+        <h2 class="end-title">${ratio >= 0.8 ? "מוח גיאוגרפי אמיתי!" : "סיבוב טוב!"}</h2>
+        <p class="end-score">ניקוד: ${score} מתוך ${questions.length}</p>
+        <p class="end-sub">${ratio === 1 ? "כל התשובות נכונות – מושלם!" : "כל תשובה נכונה הוסיפה כוכב לדרכון שלכם."}</p>
         <div id="tv-end-actions"></div>
       </div>
     `;

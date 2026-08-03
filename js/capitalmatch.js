@@ -36,15 +36,22 @@ App.CapitalMatch = (function () {
 
   function render() {
     document.getElementById(ROOT_ID).innerHTML = `
-      <div class="game-topbar">
-        <span class="badge">🏙️ התאימו בירות</span>
-        <span class="badge" id="cm-progress">זוגות: 0 מתוך ${pairs.length}</span>
-        <span class="badge" id="cm-moves">מהלכים: 0</span>
+      <div class="hud">
+        <span class="hud-mode">🏙️ התאימו בירות</span>
+        <span class="hud-spacer"></span>
+        <span class="hud-round" id="cm-progress">זוגות: 0 מתוך ${pairs.length}</span>
+        <span class="hud-pill" id="cm-moves">מהלכים: 0</span>
       </div>
-      <p class="setup-subtitle" style="text-align:center">לחצו על מדינה, ואז על הבירה שמתאימה לה</p>
+      <p class="match-intro">לחצו על מדינה, ואז על הבירה שמתאימה לה</p>
       <div class="match-board">
-        <div class="match-col" id="cm-countries"></div>
-        <div class="match-col" id="cm-capitals"></div>
+        <div class="match-col">
+          <div class="match-col-head">מדינות</div>
+          <div class="match-col" id="cm-countries"></div>
+        </div>
+        <div class="match-col">
+          <div class="match-col-head">בירות</div>
+          <div class="match-col" id="cm-capitals"></div>
+        </div>
       </div>
     `;
 
@@ -148,11 +155,14 @@ App.CapitalMatch = (function () {
 
   function endGame() {
     if (moves === pairs.length) App.Audio.perfectScore();
-    App.Mascot.say(moves <= pairs.length + 2 ? "וואו, כמעט בלי טעויות! מדהים! 🌟" : "כל הכבוד, סיימתם את כל הזוגות! 🎉");
+    const clean = moves <= pairs.length + 2;
+    App.Mascot.say(clean ? "וואו, כמעט בלי טעויות! מדהים! 🌟" : "כל הכבוד, סיימתם את כל הזוגות! 🎉");
     document.getElementById(ROOT_ID).innerHTML = `
       <div class="end-screen">
         <div class="end-emoji">🎉</div>
-        <div class="end-score">התאמתם את כל הזוגות ב-${moves} מהלכים!</div>
+        <h2 class="end-title">סיימתם את כל הזוגות!</h2>
+        <p class="end-score">${moves} מהלכים</p>
+        <p class="end-sub">${clean ? "כמעט בלי טעויות – מדהים!" : "אפשר לנסות שוב ולשפר את השיא."}</p>
         <div id="cm-end-actions"></div>
       </div>
     `;

@@ -13,7 +13,7 @@ App.Tutorial = (function () {
     {
       emoji: "🌍",
       title: "ברוכים הבאים למגלי עולם!",
-      text: "משחק קטן שעוזר לכם להכיר את מדינות העולם - איפה הן נמצאות ומה מיוחד בהן.",
+      text: "משחק שעוזר לכם להכיר את מדינות העולם - איפה הן נמצאות ומה מיוחד בהן.",
     },
     {
       emoji: "🎮",
@@ -23,12 +23,12 @@ App.Tutorial = (function () {
     {
       emoji: "⭐",
       title: "כוכבים והדרכון שלכם",
-      text: "כל תשובה נכונה מזכה אתכם בכוכב על המדינה הזו. לחצו על כפתור הכוכבים למעלה כדי לראות את הדרכון והתגים שצברתם.",
+      text: "כל תשובה נכונה מזכה אתכם בכוכב על המדינה הזו. שלושה כוכבים = המדינה הושלמה בדרכון.",
     },
     {
       emoji: "💡",
       title: "נתקעתם? יש עזרה!",
-      text: "כפתור 'קבלו רמז' עוזר במשחקי מפה. ואפשר גם להפעיל 'תרגול המדינות הקשות שלי' כדי להתמקד במה שכדאי לתרגל יותר.",
+      text: "כפתור 'קבלו רמז' עוזר במשחקי מפה, והלבבות מראים כמה ניסיונות נשארו. אפשר גם להפעיל 'תרגול המדינות הקשות שלי'.",
     },
     {
       emoji: "🚀",
@@ -58,7 +58,7 @@ App.Tutorial = (function () {
         <p class="tutorial-text">${step.text}</p>
         <div class="tutorial-dots">${dots}</div>
         <div class="tutorial-nav">
-          <button class="btn-secondary" id="tutorial-back-btn" ${stepIdx === 0 ? "disabled" : ""}>הקודם</button>
+          <button class="btn-tertiary" id="tutorial-back-btn" ${stepIdx === 0 ? "disabled" : ""}>הקודם</button>
           <button class="btn-primary" id="tutorial-next-btn">${isLast ? "בואו נתחיל! 🚀" : "הבא"}</button>
         </div>
       </div>

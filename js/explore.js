@@ -1,5 +1,6 @@
 // מצב "גלו את העולם": לחיצה על מדינה מציגה כרטיס עובדות + שכנות שלה, עם אפשרות
 // "הפתיעו אותי" לגילוי אקראי ואתגרי חיפוש קלים שמעודדים לחקור ולא רק ללחוץ באקראי.
+// בפריסה הרחבה כרטיס העובדות יושב ליד המפה (ולא מתחתיה) כדי שלא יצטרכו לגלול אחרי כל לחיצה.
 window.App = window.App || {};
 
 App.Explore = (function () {
@@ -11,18 +12,22 @@ App.Explore = (function () {
     currentPool = filterCountries(continent, difficulty);
 
     document.getElementById(ROOT_ID).innerHTML = `
-      <div class="game-topbar">
-        <span class="badge">🔎 גלו את העולם</span>
-        <span class="badge">${continent === "world" ? "כל העולם" : continent}</span>
-        <span class="badge">רמת קושי: ${difficulty}</span>
-      </div>
-      <div class="challenge-banner" id="explore-challenge"></div>
-      <div class="explore-actions">
+      <div class="explore-bar">
+        <span class="chip-static">🔎 גלו את העולם</span>
+        <span class="chip-static soft">${continent === "world" ? "כל העולם" : continent} · ${difficulty}</span>
+        <span class="hud-spacer"></span>
         <button class="btn-secondary" id="explore-spin-btn">🎲 הפתיעו אותי</button>
       </div>
-      <p class="setup-subtitle" style="text-align:center">לחצו על מדינה במפה כדי לגלות עליה עובדות ואת שכנותיה</p>
-      <div class="map-container" id="explore-map"></div>
-      <div id="explore-info"></div>
+      <div class="challenge-banner" id="explore-challenge" hidden>
+        <span class="challenge-emoji">🎯</span>
+        <span id="explore-challenge-text"></span>
+      </div>
+      <div class="game-cols">
+        <div class="game-main">
+          <div class="map-container" id="explore-map"></div>
+        </div>
+        <div class="game-side" id="explore-info"></div>
+      </div>
     `;
 
     App.Map.render(document.getElementById("explore-map"));
@@ -38,8 +43,8 @@ App.Explore = (function () {
     currentChallenge = generateChallenge(currentPool);
     const el = document.getElementById("explore-challenge");
     if (!el) return;
-    el.textContent = currentChallenge ? currentChallenge.text : "";
     el.hidden = !currentChallenge;
+    if (currentChallenge) document.getElementById("explore-challenge-text").textContent = currentChallenge.text;
   }
 
   function generateChallenge(pool) {
@@ -53,16 +58,16 @@ App.Explore = (function () {
     const basis = randomChoice(pool);
 
     if (type === "continent") {
-      return { text: `🔎 אתגר: מצאו מדינה ביבשת ${basis.continent}`, check: (c) => c.continent === basis.continent };
+      return { text: `מצאו מדינה ביבשת ${basis.continent}`, check: (c) => c.continent === basis.continent };
     }
     if (type === "language") {
       const lang = randomChoice(basis.languages_he);
-      return { text: `🔎 אתגר: מצאו מדינה שמדברים בה ${lang}`, check: (c) => c.languages_he.includes(lang) };
+      return { text: `מצאו מדינה שמדברים בה ${lang}`, check: (c) => c.languages_he.includes(lang) };
     }
     if (type === "population-big") {
-      return { text: "🔎 אתגר: מצאו מדינה עם יותר מ-100 מיליון תושבים", check: (c) => c.population > 100 };
+      return { text: "מצאו מדינה עם יותר מ-100 מיליון תושבים", check: (c) => c.population > 100 };
     }
-    return { text: "🔎 אתגר: מצאו מדינה עם פחות ממיליון תושבים", check: (c) => c.population < 1 };
+    return { text: "מצאו מדינה עם פחות ממיליון תושבים", check: (c) => c.population < 1 };
   }
 
   function selectCountry(id) {
@@ -74,18 +79,11 @@ App.Explore = (function () {
     neighborIds.forEach((b) => App.Map.setState(b, "neighbor"));
 
     // מתמקדים במדינה+שכנותיה (לא נשארים בזום היבשת המלאה) כדי שהתוויות לא יידחסו זו לתוך
-    // זו - במיוחד רלוונטי ביבשות עם פערי גודל ענקיים כמו אירופה (שכוללת גם את רוסיה).
-    // חייב לקרות *לפני* setLabel, כי גודל הטקסט נגזר מרוחב התצוגה הנוכחי.
+    // זו. חייב לקרות *לפני* setLabel, כי גודל הטקסט נגזר מרוחב התצוגה הנוכחי.
     App.Map.focusCountries([id, ...neighborIds]);
     App.Map.setLabel(id, country.name_he);
     neighborIds.forEach((b) => App.Map.setLabel(b, COUNTRIES_BY_ID[b].name_he));
     renderInfo(country);
-
-    // גוללים אוטומטית עד כרטיס העובדות - בלי זה, במובייל צריך לגלול ידנית מתחת למפה כדי
-    // לראות אותו בכלל. "nearest" ולא "start" כדי לא לזוז בכלל אם הכרטיס כבר גלוי במלואו
-    // (למשל במסך רחב).
-    const infoBox = document.getElementById("explore-info");
-    if (infoBox) infoBox.scrollIntoView({ behavior: "smooth", block: "nearest" });
 
     if (currentChallenge && currentChallenge.check(country)) {
       App.Audio.success();
@@ -108,31 +106,41 @@ App.Explore = (function () {
   function renderInfo(country) {
     const box = document.getElementById("explore-info");
     if (!country) {
-      box.innerHTML = '<div class="info-placeholder">👆 לחצו על מדינה במפה כדי להתחיל</div>';
+      box.innerHTML = `
+        <div class="info-placeholder">
+          <div class="placeholder-emoji">👆</div>
+          <div class="placeholder-title">לחצו על מדינה במפה</div>
+          <div class="placeholder-text">נראה לכם את הדגל, הבירה, השפות, השכנות ושתי עובדות מפתיעות.</div>
+        </div>
+      `;
       return;
     }
 
     const neighborNames = (country.borders || []).map((id) => COUNTRIES_BY_ID[id]).filter(Boolean).map((c) => c.name_he);
     const neighborsHtml = neighborNames.length
       ? neighborNames.join(", ")
-      : "אין לה גבול יבשתי עם מדינה אחרת (מדינת אי) 🏝️";
+      : "אין גבול יבשתי – מדינת אי 🏝️";
 
     box.innerHTML = `
-      <div class="info-card">
-        <div style="text-align:center">${flagHtml(country.id)}</div>
-        <h3 style="text-align:center">
-          ${country.name_he}
+      <div class="panel info-card">
+        <div class="info-head">
+          ${flagHtml(country.id)}
+          <div class="info-head-text">
+            <div class="info-name">${country.name_he}</div>
+            <div class="info-sub">${country.continent} · ${formatPopulation(country.population)}</div>
+          </div>
           ${App.Speech.isSupported() ? '<button class="btn-speak" id="explore-speak-btn" aria-label="הקריאו את שם המדינה">🔊</button>' : ""}
-        </h3>
+        </div>
         <dl>
           <dt>בירה</dt><dd>${country.capital_he}</dd>
-          <dt>יבשת</dt><dd>${country.continent}</dd>
-          <dt>שפה</dt><dd>${country.languages_he.join(", ")}</dd>
-          <dt>אוכלוסייה</dt><dd>${formatPopulation(country.population)}</dd>
+          <dt>שפות</dt><dd>${country.languages_he.join(", ")}</dd>
           <dt>שכנות</dt><dd>${neighborsHtml}</dd>
         </dl>
-        <p class="info-fact">💡 ${country.fact_he}</p>
-        ${country.fact2_he ? `<p class="info-fact">💡 ${country.fact2_he}</p>` : ""}
+        <div class="info-facts">
+          <p class="info-fact">💡 ${country.fact_he}</p>
+          ${country.fact2_he ? `<p class="info-fact">💡 ${country.fact2_he}</p>` : ""}
+        </div>
+        <div class="info-legend">בטורקיז – השכנות שלה על המפה</div>
       </div>
     `;
 

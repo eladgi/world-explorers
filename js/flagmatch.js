@@ -35,15 +35,22 @@ App.FlagMatch = (function () {
 
   function render() {
     document.getElementById(ROOT_ID).innerHTML = `
-      <div class="game-topbar">
-        <span class="badge">🧩 התאימו דגלים</span>
-        <span class="badge" id="fm-progress">זוגות: 0 מתוך ${pairs.length}</span>
-        <span class="badge" id="fm-moves">מהלכים: 0</span>
+      <div class="hud">
+        <span class="hud-mode">🧩 התאימו דגלים</span>
+        <span class="hud-spacer"></span>
+        <span class="hud-round" id="fm-progress">זוגות: 0 מתוך ${pairs.length}</span>
+        <span class="hud-pill" id="fm-moves">מהלכים: 0</span>
       </div>
-      <p class="setup-subtitle" style="text-align:center">לחצו על דגל, ואז על שם המדינה שמתאים לו</p>
+      <p class="match-intro">לחצו על דגל, ואז על שם המדינה שמתאים לו</p>
       <div class="match-board">
-        <div class="match-col" id="fm-flags"></div>
-        <div class="match-col" id="fm-names"></div>
+        <div class="match-col">
+          <div class="match-col-head">דגלים</div>
+          <div class="match-col" id="fm-flags"></div>
+        </div>
+        <div class="match-col">
+          <div class="match-col-head">שמות מדינות</div>
+          <div class="match-col" id="fm-names"></div>
+        </div>
       </div>
     `;
 
@@ -147,11 +154,14 @@ App.FlagMatch = (function () {
 
   function endGame() {
     if (moves === pairs.length) App.Audio.perfectScore();
-    App.Mascot.say(moves <= pairs.length + 2 ? "וואו, כמעט בלי טעויות! מדהים! 🌟" : "כל הכבוד, סיימתם את כל הזוגות! 🎉");
+    const clean = moves <= pairs.length + 2;
+    App.Mascot.say(clean ? "וואו, כמעט בלי טעויות! מדהים! 🌟" : "כל הכבוד, סיימתם את כל הזוגות! 🎉");
     document.getElementById(ROOT_ID).innerHTML = `
       <div class="end-screen">
         <div class="end-emoji">🎉</div>
-        <div class="end-score">התאמתם את כל הזוגות ב-${moves} מהלכים!</div>
+        <h2 class="end-title">סיימתם את כל הזוגות!</h2>
+        <p class="end-score">${moves} מהלכים</p>
+        <p class="end-sub">${clean ? "כמעט בלי טעויות – מדהים!" : "אפשר לנסות שוב ולשפר את השיא."}</p>
         <div id="fm-end-actions"></div>
       </div>
     `;
