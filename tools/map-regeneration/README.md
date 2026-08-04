@@ -41,6 +41,30 @@ as-is. If a future export uses a very different scale, re-check that
 `TINY_MARKER_RADIUS` in `js/worldmap.js` (the tiny-country click-target
 markers) still looks reasonable relative to the new viewBox.
 
+**Known bug pattern (fixed once, watch for it again on re-export)**:
+amCharts' generator can place a real antimeridian-crossing island as a
+tiny, isolated subpath on the *opposite* edge of the map instead of
+continuing the island chain naturally off the near edge — e.g. the
+westernmost tip of Alaska's Aleutian chain (`us`) rendered as a 6-point
+speck at the map's far-right edge, and a small New Zealand island (`nz`,
+likely Chatham Islands) rendered at the far-left edge. Each was a single
+tiny subpath (well under 20 points) sitting 800-900px away from the rest
+of the same country's path, in a ~1028px-wide map — which blew up
+`getBBox()` for that country to 85-91% of the whole map width, in turn
+making `App.Map.focusCountry()`'s auto-zoom (used for Guess-mode hints)
+zoom out to fit that inflated bbox, making the country look tiny instead
+of filling the frame. Fixed via `find_stray_fragments.py` (flags small
+subpaths whose center sits implausibly far from a country's main
+landmass — real large fragments like Russia's Chukotka peninsula, which
+also crosses the antimeridian, are deliberately not flagged, since
+they're genuine geography worth keeping) and `drop_stray_fragments.py`
+(removes the two confirmed strays by exact substring match). Both are
+one-off diagnostic/patch scripts, not part of the regular build — rerun
+`find_stray_fragments.py` after any future amCharts re-export to check
+whether the same class of bug reappears (possibly on different
+countries, since it depends on amCharts' internal antimeridian handling
+for that export).
+
 A different, much less safe approach was tried and abandoned first: amCharts
 also ships a static pre-built Mercator-projected SVG
 (`ammap3/ammap/maps/svg/worldHigh.svg`) with reasonable per-country detail,
