@@ -119,6 +119,24 @@ bugs, not speculative advice.
   Malta) filled the whole screen with no surrounding context.
 - **Audio**: don't add per-click/per-navigation sounds. Confirmed
   unwanted by the user once already.
+- **Tiny-country click markers** (`App.Map`'s `addTinyCountryMarkers`):
+  countries under `MIN_VISIBLE_MAP_SIZE` (map viewBox units — currently
+  ~12 countries, e.g. Maldives, Malta, Singapore) are too small to see or
+  click reliably, so each gets an extra `<circle class="country
+  tiny-marker">` at its visual center, carrying the **same `id`** as the
+  real `<path>` (duplicate ids across two elements — tolerated by browsers,
+  and deliberate: `elFor`/`bboxFor` rely on `querySelector` returning the
+  *first* match in document order, which is always the real path since the
+  marker is appended later, so zoom/label placement stay based on true
+  geometry; the marker is purely a bigger visual/click target). Because of
+  this, `setState`/`removeState` use `elsFor` (`querySelectorAll`, plural)
+  so a state class like `.correct`/`.wrong` reaches *both* the marker and
+  the invisible-at-that-size real path — if you ever revert to a
+  singular/first-match query there, tiny countries will stop visibly
+  reacting to selection. `App.Map.isTinyCountry(id)` exposes the same size
+  check for other modes (`shapeguess.js` uses it to exclude these countries
+  from "guess by shape" entirely, since there's no recognizable silhouette
+  at that size regardless of the marker).
 
 ## The world map data (`assets/world-map.svg` / `.js`)
 

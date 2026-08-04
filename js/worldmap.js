@@ -28,9 +28,20 @@ App.Map = (function () {
   // המקסימלי, כדי שמדינות זעירות (קפריסין, מלטה) לא יתמלאו כמעט את כל המסך בלי שום
   // הקשר גיאוגרפי מסביב (שכנות/חוף) שיעזור למצוא אותן על המפה.
   const MIN_FOCUS_WIDTH_DIVISOR = 6;
+  // מדינות שהצורה האמיתית שלהן על המפה קטנה מהסף הזה (ביחידות ה-viewBox) כמעט בלתי
+  // ניתנות לראייה/לחיצה (לדוגמה האיים המלדיביים ברוחב 0.2 יחידות בלבד) - מקבלות עיגול-סמן
+  // מלאכותי בגודל קבוע (ר' addTinyCountryMarkers) שמשמש גם כאמצעי זיהוי חזותי וגם כאזור
+  // לחיצה גדול יותר. אותו סף משמש גם לסינון מצב "נחשו לפי הצורה" (shapeguess.js, דרך
+  // isTinyCountry) - בגודל כזה אין שום מידע צורני שניתן לזהות ממנו ממילא.
+  const MIN_VISIBLE_MAP_SIZE = 3;
+  const TINY_MARKER_RADIUS = 1.8;
 
   function elFor(id) {
     return svgEl ? svgEl.querySelector('[id="' + id + '"]') : null;
+  }
+
+  function elsFor(id) {
+    return svgEl ? svgEl.querySelectorAll('[id="' + id + '"]') : [];
   }
 
   // עבור מדינות מרובות-חלקים יש תת-נתיב עם class="mainland" (ר' הערה למעלה) - זה האלמנט
@@ -277,6 +288,41 @@ App.Map = (function () {
     return btn;
   }
 
+  // מדינות קטנות מדי לראייה/לחיצה (ר' MIN_VISIBLE_MAP_SIZE) מקבלות עיגול-סמן מלאכותי
+  // בגודל קבוע, ממורכז ב"מרכז החזותי" של הצורה האמיתית (אותה פונקציה ששכבת התוויות
+  // משתמשת בה). ה-id על הסמן זהה ל-id של הצורה המקורית (כפילות id נסבלת בדפדפנים -
+  // ניתוב הלחיצה קורא את ה-id ישירות מהיעד שנלחץ, וכל שאילתת querySelector-יחיד אחרת
+  // ב-elFor ממשיכה למצוא את הצורה האמיתית קודם כי היא מופיעה לפניו ב-DOM).
+  function addTinyCountryMarkers() {
+    const markersLayer = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    markersLayer.setAttribute("class", "tiny-markers");
+    svgEl.querySelectorAll(".country").forEach((node) => {
+      const box = node.getBBox();
+      if (Math.max(box.width, box.height) >= MIN_VISIBLE_MAP_SIZE) return;
+      const center = visualCenterFor(node, box);
+      const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      circle.setAttribute("id", node.id);
+      circle.setAttribute("data-id", node.id);
+      circle.setAttribute("class", "country tiny-marker");
+      circle.setAttribute("cx", center.x);
+      circle.setAttribute("cy", center.y);
+      circle.setAttribute("r", TINY_MARKER_RADIUS);
+      markersLayer.appendChild(circle);
+    });
+    svgEl.appendChild(markersLayer);
+  }
+
+  // משתמש במקור הנסתר הקבוע (לא ב-svgEl האינטראקטיבי) כדי לתת תשובה נכונה גם אם נקרא
+  // לפני שהמפה של המצב הנוכחי בכלל הוצגה (למשל shapeguess.js בונה את מאגר המדינות שלו
+  // לפני קריאת App.Map.render()).
+  function isTinyCountry(id) {
+    const src = ensureSilhouetteSource();
+    const el = src.querySelector('[id="' + id + '"]');
+    if (!el) return false;
+    const box = el.getBBox();
+    return Math.max(box.width, box.height) < MIN_VISIBLE_MAP_SIZE;
+  }
+
   function render(el) {
     container = el;
     container.innerHTML = WORLD_MAP_SVG;
@@ -301,6 +347,7 @@ App.Map = (function () {
         node.classList.add("land-other");
       }
     });
+    addTinyCountryMarkers();
 
     activePointers.clear();
     dragStart = null;
@@ -352,13 +399,14 @@ App.Map = (function () {
   }
 
   function setState(id, state) {
-    const el = elFor(id);
-    if (el) el.classList.add(state);
+    // elsFor (לא רק elFor) כדי שגם עיגול-הסמן של מדינה זעירה (ר' addTinyCountryMarkers)
+    // יקבל את אותו צבע מצב כמו הצורה האמיתית - בגודל 0.2 יחידות של המלדיביים, הצבע על
+    // הצורה עצמה כמעט ולא נראה, והסמן הוא בפועל מה שהשחקן רואה מגיב.
+    elsFor(id).forEach((el) => el.classList.add(state));
   }
 
   function removeState(id, state) {
-    const el = elFor(id);
-    if (el) el.classList.remove(state);
+    elsFor(id).forEach((el) => el.classList.remove(state));
   }
 
   // שכבת תוויות שמות - לא מוצגת כברירת מחדל (כדי לא להציף מפה עם 179 שמות), רק כשמבקשים
@@ -489,5 +537,6 @@ App.Map = (function () {
     setLabel,
     clearLabels,
     getSilhouetteSvg,
+    isTinyCountry,
   };
 })();

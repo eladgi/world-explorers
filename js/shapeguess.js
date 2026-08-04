@@ -25,7 +25,10 @@ App.ShapeGuess = (function () {
     currentPracticeWeak = !!practiceWeak;
     maxMisses = MAX_MISSES_BY_DIFFICULTY[difficulty] || 3;
 
-    const basePool = filterCountries(continent, difficulty);
+    // מדינות קטנות מכדי להיראות על המפה (לדוגמה האיים המלדיביים) לא מוצגות במצב הזה -
+    // אין להן שום צורה מזוהה שאפשר לבקש מילד/ה לזהות, בניגוד למצב "נחשו את המדינה" (guess.js),
+    // ששם עיגול-הסמן המלאכותי (ר' worldmap.js) מספיק כי שם רק צריך למצוא ולא לזהות צורה.
+    const basePool = filterCountries(continent, difficulty).filter((c) => !App.Map.isTinyCountry(c.id));
     const pool = currentPracticeWeak ? App.Progress.getWeakCountries(basePool, basePool.length) : basePool;
     const total = Math.min(10, pool.length);
     order = shuffle(pool).slice(0, total);
