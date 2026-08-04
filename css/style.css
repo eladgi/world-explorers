@@ -571,16 +571,17 @@ main#app { flex: 1; width: 100%; }
   cursor: pointer;
   transition: fill .15s;
 }
+/* אזור-הלחיצה השקוף של מדינה זעירה מדי לראייה (ר' worldmap.js addTinyCountryMarkers) -
+   fill שקוף (לא visible) לפני אינטראקציה, כדי שלא ייראה כמו פיסת יבשה מזויפת על המפה;
+   fill="transparent" (לא fill:none) בכוונה כדי שעדיין יתפוס קליקים. חייב לבוא *לפני* כללי
+   ה-state למטה (לא אחריהם) כדי שנבחר/נכון/שגוי עדיין יצבעו אותו כשבאמת נלחץ. */
+.tiny-marker { fill: transparent; stroke: none; }
 @media (hover: hover) { .country:hover { fill: #8ecb85; } }
 .country.dimmed { fill: #dfe6e0; pointer-events: none; }
 .country.selected { fill: var(--gold); }
 .country.correct { fill: var(--success); }
 .country.wrong { fill: var(--error); animation: shake .4s; }
 .country.neighbor { fill: #7fd8cf; }
-
-/* סיכת-מפה למדינות זעירות מדי לראייה (ר' worldmap.js addTinyCountryMarkers) - מתאר כהה
-   ולא הצבע הרך של גבולות מדינה רגילים, כדי שתיקרא בבירור כסמן ולא כטריטוריה על המפה. */
-.tiny-marker { stroke: var(--ink); stroke-width: .9; }
 
 .land-other {
   fill: #dfe6e0;
@@ -598,6 +599,20 @@ main#app { flex: 1; width: 100%; }
   paint-order: stroke;
   stroke: #ffffff;
   stroke-width: .22em;
+  stroke-linejoin: round;
+  direction: rtl;
+}
+
+/* תוויות קבועות למדינות זעירות מדי לראייה (ר' worldmap.js addTinyCountryMarkers) - עדינות
+   ומעודנות מ-.country-label (שנועד להתבלט זמנית על מדינה שנבחרה), כדי לא להסיח דעת. */
+.tiny-marker-labels { pointer-events: none; }
+.tiny-marker-label {
+  font-family: "Rubik", "Heebo", Tahoma, sans-serif;
+  font-weight: 500;
+  fill: var(--ink-soft);
+  paint-order: stroke;
+  stroke: #ffffff;
+  stroke-width: .2em;
   stroke-linejoin: round;
   direction: rtl;
 }

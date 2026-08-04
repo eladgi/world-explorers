@@ -29,17 +29,19 @@ App.Map = (function () {
   // הקשר גיאוגרפי מסביב (שכנות/חוף) שיעזור למצוא אותן על המפה.
   const MIN_FOCUS_WIDTH_DIVISOR = 6;
   // מדינות שהצורה האמיתית שלהן על המפה קטנה מהסף הזה (ביחידות ה-viewBox) כמעט בלתי
-  // ניתנות לראייה/לחיצה (לדוגמה האיים המלדיביים ברוחב 0.2 יחידות בלבד) - מקבלות עיגול-סמן
-  // מלאכותי בגודל קבוע (ר' addTinyCountryMarkers) שמשמש גם כאמצעי זיהוי חזותי וגם כאזור
-  // לחיצה גדול יותר. אותו סף משמש גם לסינון מצב "נחשו לפי הצורה" (shapeguess.js, דרך
-  // isTinyCountry) - בגודל כזה אין שום מידע צורני שניתן לזהות ממנו ממילא.
+  // ניתנות לראייה/לחיצה (לדוגמה האיים המלדיביים ברוחב 0.2 יחידות בלבד) - מקבלות אזור-לחיצה
+  // בלתי-נראה גדול יותר + תווית טקסט קבועה עם שם המדינה (ר' addTinyCountryMarkers). אותו
+  // סף משמש גם לסינון מצב "נחשו לפי הצורה" (shapeguess.js, דרך isTinyCountry) - בגודל כזה
+  // אין שום מידע צורני שניתן לזהות ממנו ממילא.
+  //
+  // שני ניסיונות קודמים נפסלו: עיגול צבוע כמו מדינה אמיתית (fill ירוק כמו .country) נראה
+  // כמו פיסת יבשה אמיתית ומטעה; סיכת-מפה וקטורית עם מתאר כהה, בזום עולם (שבו הסמן קטן
+  // מאוד), ה-stroke הקבוע-רוחב (vector-effect:non-scaling-stroke) בלע את כל השטח הפנימי
+  // הקטן - נראה כמו כתם/נקודה כהה בלתי-מוסברת, לא כמו סיכה. טקסט (שם המדינה) לא סובל
+  // מהבעיה הזו - הוא תמיד קריא כטקסט, לא נראה כמו גיאוגרפיה, ולא "בולע" את עצמו בזום קטן.
   const MIN_VISIBLE_MAP_SIZE = 3;
-  // צורת "סיכת מפה" קטנה בקואורדינטות מקומיות - החוד ב-(0,0) נוגע במיקום המדויק, הגוף
-  // צף מעליו. מכוונת בכל מופע ע"י transform=translate+scale (ר' addTinyCountryMarkers).
-  // צורה גיאומטרית מכוונת (לא עיגול צבוע כמו מדינה אמיתית, לא אימוג'י) כדי שאי אפשר יהיה
-  // לבלבל אותה עם צורת מדינה אמיתית על המפה - נוסה עיגול קודם וזוהה כמטעה.
-  const TINY_MARKER_PATH = "M0,0 L-0.45,-0.75 L-0.35,-1.5 L0,-1.8 L0.35,-1.5 L0.45,-0.75 Z";
-  const TINY_MARKER_SCALE = 1.3;
+  const TINY_HIT_RADIUS = 2.4;
+  const TINY_LABEL_FONT_SIZE = 9;
 
   function elFor(id) {
     return svgEl ? svgEl.querySelector('[id="' + id + '"]') : null;
@@ -293,27 +295,77 @@ App.Map = (function () {
     return btn;
   }
 
-  // מדינות קטנות מדי לראייה/לחיצה (ר' MIN_VISIBLE_MAP_SIZE) מקבלות סיכת-מפה מלאכותית
-  // קטנה, ממורכזת (בחוד שלה) ב"מרכז החזותי" של הצורה האמיתית (אותה פונקציה ששכבת
-  // התוויות משתמשת בה). ה-id על הסמן זהה ל-id של הצורה המקורית (כפילות id נסבלת
-  // בדפדפנים - ניתוב הלחיצה קורא את ה-id ישירות מהיעד שנלחץ, וכל שאילתת querySelector-יחיד
-  // אחרת ב-elFor ממשיכה למצוא את הצורה האמיתית קודם כי היא מופיעה לפניו ב-DOM).
+  // מדינות קטנות מדי לראייה/לחיצה (ר' MIN_VISIBLE_MAP_SIZE) מקבלות שני אלמנטים נפרדים,
+  // שניהם ממורכזים ב"מרכז החזותי" של הצורה האמיתית (אותה פונקציה ששכבת התוויות משתמשת
+  // בה): עיגול שקוף (fill="transparent" בכוונה, לא fill:none - אחרת לא תופס קליקים בכלל)
+  // בתור אזור-לחיצה מוגדל, ותווית טקסט קבועה עם שם המדינה. ה-id על עיגול הלחיצה זהה ל-id
+  // של הצורה המקורית (כפילות id נסבלת בדפדפנים - ניתוב הלחיצה קורא את ה-id ישירות מהיעד
+  // שנלחץ, וכל שאילתת querySelector-יחיד אחרת ב-elFor ממשיכה למצוא את הצורה האמיתית קודם
+  // כי היא מופיעה לפניו ב-DOM). התווית עצמה לא צריכה id/קליק - pointer-events:none על כל
+  // שכבת התוויות (ר' CSS) מעביר קליקים דרכה אל מה שמתחתיה.
   function addTinyCountryMarkers() {
     const markersLayer = document.createElementNS("http://www.w3.org/2000/svg", "g");
     markersLayer.setAttribute("class", "tiny-markers");
+    const labelsG = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    labelsG.setAttribute("class", "tiny-marker-labels");
+    // מחוברים ל-DOM *לפני* שמוסיפים תוויות בפנים - getBBox על טקסט (לצורך מניעת חפיפה
+    // למטה) דורש לרוב שהאלמנט יהיה מחובר למסמך המוצג, לא רק "בדרך" לשם.
+    svgEl.appendChild(markersLayer);
+    svgEl.appendChild(labelsG);
+
+    // כמה מהמדינות הזעירות קרובות זו לזו במציאות (למשל דומיניקה/סנט לוסיה/סנט וינסנט/
+    // טרינידד בקריביים המזרחיים) - בלי טיפול בחפיפה, התוויות הקבועות שלהן ממש מצטלבות
+    // אות-על-אות בזום עולם ומתמזגות לטקסט בלתי קריא. לכל תווית שמתנגשת מנסים מיקום שני
+    // (מעל הנקודה במקום מתחתיה) לפני שמוותרים ומסתירים אותה - אף פעם לא רק מדללים/מקצרים,
+    // כי תווית מוסתרת לגמרי מבטלת את הסיבה שהיא בכלל קיימת. מערך נפרד מ-setLabel: אלה
+    // תוויות קבועות (לא מתאפסות ב-clearLabels), לא קשור לתוויות זמניות של מדינה שנבחרה.
+    const placedTinyLabelBoxes = [];
+    const LABEL_Y_OFFSETS = [
+      TINY_HIT_RADIUS + TINY_LABEL_FONT_SIZE * 0.85,
+      -(TINY_HIT_RADIUS + TINY_LABEL_FONT_SIZE * 0.35),
+    ];
+
+    function placeTinyLabel(center, text) {
+      for (const dy of LABEL_Y_OFFSETS) {
+        const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        label.setAttribute("x", center.x);
+        label.setAttribute("y", center.y + dy);
+        label.setAttribute("text-anchor", "middle");
+        label.setAttribute("class", "tiny-marker-label");
+        label.setAttribute("font-size", TINY_LABEL_FONT_SIZE);
+        label.textContent = text;
+        labelsG.appendChild(label);
+
+        const tb = label.getBBox();
+        const pad = tb.height * 0.2;
+        const paddedBox = { x: tb.x - pad, y: tb.y - pad, width: tb.width + pad * 2, height: tb.height + pad * 2 };
+        if (!placedTinyLabelBoxes.some((b) => rectsOverlap(b, paddedBox))) {
+          placedTinyLabelBoxes.push(paddedBox);
+          return;
+        }
+        label.remove();
+      }
+    }
+
     svgEl.querySelectorAll(".country").forEach((node) => {
       const box = node.getBBox();
       if (Math.max(box.width, box.height) >= MIN_VISIBLE_MAP_SIZE) return;
       const center = visualCenterFor(node, box);
-      const marker = document.createElementNS("http://www.w3.org/2000/svg", "path");
-      marker.setAttribute("id", node.id);
-      marker.setAttribute("data-id", node.id);
-      marker.setAttribute("class", "country tiny-marker");
-      marker.setAttribute("d", TINY_MARKER_PATH);
-      marker.setAttribute("transform", "translate(" + center.x + "," + center.y + ") scale(" + TINY_MARKER_SCALE + ")");
-      markersLayer.appendChild(marker);
+
+      const hitArea = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      hitArea.setAttribute("id", node.id);
+      hitArea.setAttribute("data-id", node.id);
+      hitArea.setAttribute("class", "country tiny-marker");
+      hitArea.setAttribute("cx", center.x);
+      hitArea.setAttribute("cy", center.y);
+      hitArea.setAttribute("r", TINY_HIT_RADIUS);
+      hitArea.setAttribute("fill", "transparent");
+      markersLayer.appendChild(hitArea);
+
+      const country = COUNTRIES_BY_ID[node.id];
+      if (!country) return;
+      placeTinyLabel(center, country.name_he);
     });
-    svgEl.appendChild(markersLayer);
   }
 
   // משתמש במקור הנסתר הקבוע (לא ב-svgEl האינטראקטיבי) כדי לתת תשובה נכונה גם אם נקרא

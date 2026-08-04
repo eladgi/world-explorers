@@ -122,27 +122,34 @@ bugs, not speculative advice.
 - **Tiny-country click markers** (`App.Map`'s `addTinyCountryMarkers`):
   countries under `MIN_VISIBLE_MAP_SIZE` (map viewBox units — currently
   ~12 countries, e.g. Maldives, Malta, Singapore) are too small to see or
-  click reliably, so each gets an extra small map-pin-shaped
-  `<path class="country tiny-marker">` at its visual center (tip touching
-  the exact spot), carrying the **same `id`** as the real `<path>`
-  (duplicate ids across two elements — tolerated by browsers, and
-  deliberate: `elFor`/`bboxFor` rely on `querySelector` returning the
-  *first* match in document order, which is always the real path since the
-  marker is appended later, so zoom/label placement stay based on true
-  geometry; the marker is purely a bigger visual/click target). **A plain
-  colored circle was tried first and rejected** — styled like `.country`
-  fill, it read as an actual (wrong) piece of geography rather than a UI
-  affordance. The pin shape (plus a darker `.tiny-marker` stroke override
-  in CSS) is deliberately *not* map-colored terrain, so it can't be
-  mistaken for the country's real shape/size. Because the marker shares the
-  real path's `id`, `setState`/`removeState` use `elsFor` (`querySelectorAll`,
-  plural) so a state class like `.correct`/`.wrong` reaches *both* the
-  marker and the invisible-at-that-size real path — if you ever revert to a
-  singular/first-match query there, tiny countries will stop visibly
-  reacting to selection. `App.Map.isTinyCountry(id)` exposes the same size
-  check for other modes (`shapeguess.js` uses it to exclude these countries
-  from "guess by shape" entirely, since there's no recognizable silhouette
-  at that size regardless of the marker).
+  click reliably. Two visual approaches were tried and rejected before the
+  current one: a plain circle styled like `.country` fill read as an actual
+  (wrong) piece of geography; a small map-pin icon looked fine zoomed in,
+  but at world zoom its constant-screen-width stroke
+  (`vector-effect: non-scaling-stroke`) swallowed the icon's tiny fill area
+  and it just looked like an unexplained dark speck. **Current approach**:
+  no icon at all. Each tiny country gets (1) an invisible
+  `<circle class="country tiny-marker" fill="transparent">` at its visual
+  center as an enlarged click target — `fill="transparent"`, not
+  `fill: none`, since `none` stops it from receiving clicks at all — and
+  (2) a permanent small text label (`.tiny-marker-label`, muted/lighter
+  weight than the normal on-selection `.country-label`) showing the
+  country's name. Text can't be mistaken for geography and doesn't suffer
+  the icon-shrinks-to-a-dot problem, since it's sized directly rather than
+  via a stroke that competes with a tiny fill area. The hit-circle carries
+  the **same `id`** as the real `<path>` (duplicate ids across two elements
+  — tolerated by browsers, and deliberate: `elFor`/`bboxFor` rely on
+  `querySelector` returning the *first* match in document order, which is
+  always the real path since the marker is appended later, so zoom/label
+  placement stay based on true geometry). Because of this,
+  `setState`/`removeState` use `elsFor` (`querySelectorAll`, plural) so a
+  state class like `.correct`/`.wrong` reaches *both* the hit-circle (which
+  only then becomes visibly colored, as feedback) and the invisible-at-that-
+  size real path — if you ever revert to a singular/first-match query
+  there, tiny countries will stop visibly reacting to selection.
+  `App.Map.isTinyCountry(id)` exposes the same size check for other modes
+  (`shapeguess.js` uses it to exclude these countries from "guess by shape"
+  entirely, since there's no recognizable silhouette at that size).
 
 ## The world map data (`assets/world-map.svg` / `.js`)
 
