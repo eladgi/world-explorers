@@ -105,6 +105,22 @@ App.Guess = (function () {
     hintBtn.disabled = false;
     hintBtn.textContent = "💡 קבלו רמז";
     document.getElementById("guess-hint-text").innerHTML = "";
+
+    scrollPromptIntoViewIfNeeded();
+  }
+
+  // במסך צר, game-cols עובר לעמודה אחת עם ההנחיה (הדגל+השם) מעל המפה - אחרי לחיצה
+  // על מדינה השחקן/ית גלולים למטה כדי לראות את המפה, אז בלי זה ההנחיה של הסיבוב
+  // הבא מתעדכנת מעל לקפל ואף אחד לא רואה איזו מדינה לחפש. במסך רחב ההנחיה כבר
+  // גלויה לצד המפה (ר' ההערה המקבילה ב-explore.js), אז גוללים רק אם באמת צריך.
+  function scrollPromptIntoViewIfNeeded() {
+    const panel = document.querySelector("#view-guess .panel.centered");
+    if (!panel) return;
+    const rect = panel.getBoundingClientRect();
+    const fullyVisible = rect.top >= 0 && rect.bottom <= window.innerHeight;
+    if (fullyVisible) return;
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    panel.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "nearest" });
   }
 
   // רמז דו-שלבי: קודם יבשת (+ זום חזותי אם המפה עדיין בתצוגת עולם), ואז - אם עדיין לא
