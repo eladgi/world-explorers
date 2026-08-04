@@ -161,7 +161,7 @@ main#app { flex: 1; width: 100%; }
 .view[hidden] { display: none; }
 #view-menu, #view-passport { max-width: 1160px; }
 #view-setup { max-width: 1000px; padding-bottom: 110px; }
-#view-explore, #view-guess, #view-shapeguess { max-width: 1160px; }
+#view-explore, #view-guess, #view-shapeguess { max-width: min(94vw, 1640px); }
 #view-flagmatch, #view-capitalmatch { max-width: 960px; }
 #view-trivia { max-width: 820px; }
 
@@ -556,11 +556,11 @@ main#app { flex: 1; width: 100%; }
 .world-map-svg {
   display: block;
   width: 100%;
-  height: clamp(300px, 50vh, 580px);
+  height: clamp(300px, 62vh, 780px);
   border-radius: var(--radius-sm);
   touch-action: none;
 }
-#explore-map .world-map-svg { height: clamp(300px, 52vh, 600px); }
+#explore-map .world-map-svg { height: clamp(300px, 64vh, 820px); }
 .world-map-svg path { fill-rule: evenodd; }
 
 .country {

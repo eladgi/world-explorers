@@ -146,6 +146,19 @@ App.Explore = (function () {
 
     const speakBtn = document.getElementById("explore-speak-btn");
     if (speakBtn) speakBtn.addEventListener("click", () => App.Speech.speak(country.name_he));
+
+    scrollInfoIntoViewIfNeeded(box);
+  }
+
+  // במסך צר, game-cols עובר לעמודה אחת (המפה קודם, כרטיס העובדות אחריה) - בלי זה, אחרי
+  // כל לחיצה על מדינה הכרטיס נשאר מתחת לקפל ואף אחד לא רואה שהוא בכלל התעדכן. במסך רחב
+  // הכרטיס כבר גלוי לצד המפה (ר' ההערה בראש הקובץ), אז גוללים רק אם באמת צריך.
+  function scrollInfoIntoViewIfNeeded(box) {
+    const rect = box.getBoundingClientRect();
+    const fullyVisible = rect.top >= 0 && rect.bottom <= window.innerHeight;
+    if (fullyVisible) return;
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    box.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "nearest" });
   }
 
   return { start };

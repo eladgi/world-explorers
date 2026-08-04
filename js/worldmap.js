@@ -23,7 +23,7 @@ App.Map = (function () {
   let pinchStart = null;
   let moved = false;
   const DRAG_THRESHOLD = 6;
-  const MAX_ZOOM_DIVISOR = 8;
+  const MAX_ZOOM_DIVISOR = 12;
   // רף תחתון לזום אוטומטי (focusCountry/focusCountries) - קצת פחות קיצוני מהזום הידני
   // המקסימלי, כדי שמדינות זעירות (קפריסין, מלטה) לא יתמלאו כמעט את כל המסך בלי שום
   // הקשר גיאוגרפי מסביב (שכנות/חוף) שיעזור למצוא אותן על המפה.
