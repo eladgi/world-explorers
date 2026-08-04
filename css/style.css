@@ -616,7 +616,6 @@ main#app { flex: 1; width: 100%; }
   stroke-linejoin: round;
   direction: rtl;
 }
-.tiny-marker-label.tiny-marker-label-hidden { display: none; }
 
 .map-reset-btn {
   position: absolute;

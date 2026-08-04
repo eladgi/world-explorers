@@ -96,6 +96,7 @@ App.Guess = (function () {
     if (idx >= order.length) return endGame();
 
     const country = order[idx];
+    App.Map.setHintTarget(country.id);
     renderHud();
     document.getElementById("guess-flag").innerHTML = flagHtml(country.id);
     document.getElementById("guess-name").textContent = country.name_he;

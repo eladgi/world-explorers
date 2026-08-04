@@ -17,7 +17,11 @@ App.Map = (function () {
   let labelsLayer = null;
   let placedLabelBoxes = []; // תיבות תוחמות של תוויות שכבר הוצגו בסבב הנוכחי, למניעת חפיפה
   let silhouetteSvgEl = null; // עותק נסתר קבוע של המפה, רק לצורך מדידת bbox וחילוץ נתיבים (d)
-  let tinyMarkerLabelsLayer = null; // תוויות הטקסט הקבועות של מדינות זעירות (ר' addTinyCountryMarkers)
+  let hintMarkerLayer = null; // עיגול-לחיצה בלתי-נראה + תווית של מדינת-הרמז הזעירה הנוכחית (ר' setHintTarget)
+  let hintLabelLayer = null;
+  let hintTargetId = null;
+  let hintTargetCenter = null;
+  let hintLabelForceHidden = false; // מוסתרת בכפייה אחרי selected/correct (ר' setState), בלי קשר לזום
 
   const activePointers = new Map();
   let dragStart = null;
@@ -30,24 +34,30 @@ App.Map = (function () {
   // הקשר גיאוגרפי מסביב (שכנות/חוף) שיעזור למצוא אותן על המפה.
   const MIN_FOCUS_WIDTH_DIVISOR = 6;
   // מדינות שהצורה האמיתית שלהן על המפה קטנה מהסף הזה (ביחידות ה-viewBox) כמעט בלתי
-  // ניתנות לראייה/לחיצה (לדוגמה האיים המלדיביים ברוחב 0.2 יחידות בלבד) - מקבלות אזור-לחיצה
-  // בלתי-נראה גדול יותר + תווית טקסט קבועה עם שם המדינה (ר' addTinyCountryMarkers). אותו
-  // סף משמש גם לסינון מצב "נחשו לפי הצורה" (shapeguess.js, דרך isTinyCountry) - בגודל כזה
-  // אין שום מידע צורני שניתן לזהות ממנו ממילא.
+  // ניתנות לראייה/לחיצה (לדוגמה האיים המלדיביים ברוחב 0.2 יחידות בלבד). אותו סף משמש גם
+  // לסינון מצב "נחשו לפי הצורה" (shapeguess.js, דרך isTinyCountry) - בגודל כזה אין שום
+  // מידע צורני שניתן לזהות ממנו ממילא.
   //
-  // שני ניסיונות קודמים נפסלו: עיגול צבוע כמו מדינה אמיתית (fill ירוק כמו .country) נראה
-  // כמו פיסת יבשה אמיתית ומטעה; סיכת-מפה וקטורית עם מתאר כהה, בזום עולם (שבו הסמן קטן
-  // מאוד), ה-stroke הקבוע-רוחב (vector-effect:non-scaling-stroke) בלע את כל השטח הפנימי
-  // הקטן - נראה כמו כתם/נקודה כהה בלתי-מוסברת, לא כמו סיכה. טקסט (שם המדינה) לא סובל
-  // מבעיית ה"בליעה" הזו, אבל עדיין חייב להתעדכן דינמית לפי הזום הנוכחי (ר'
-  // updateTinyLabelSizes, נקרא מתוך applyViewBox) - גודל פונט קבוע ביחידות ה-viewBox
-  // נראה סביר בזום עולם אבל הופך לענק וממש מסתיר את המפה לאחר focusCountry על מדינת-אי
-  // זעירה (שמתמקד בקנה מידה הרבה יותר צר), בדיוק כמו שכל דבר אחר על המפה "מתנפח" בזום.
+  // שלוש גרסאות קודמות של הסיוע נפסלו, כל אחת כי היא הייתה גלובלית וקבועה - מוצגת תמיד
+  // על כל 12-ה מדינות הזעירות בבת אחת, גם כשרק אחת מהן רלוונטית לסבב הנוכחי: עיגול צבוע
+  // כמו מדינה אמיתית נראה כמו פיסת יבשה מזויפת; סיכת-מפה וקטורית בזום עולם נראתה כמו כתם
+  // כהה בלתי-מוסבר (ה-stroke הקבוע-רוחב בלע את השטח הפנימי הקטן); תווית טקסט קבועה
+  // התנפחה לגודל ענק אחרי זום-רמז לתוך מדינת-אי (אין לה שכנות שיתנו הקשר לצמצם את הזום),
+  // וגם כפולה מיותרת מול התווית הזמנית הרגילה לאחר בחירה.
+  //
+  // **הגישה הנוכחית**: אין יותר "כל 12 המדינות תמיד" - יש **מדינת-רמז יחידה** (ר'
+  // setHintTarget/clearHintTarget), שהמצבים המדורגים (guess.js/shapeguess.js) קובעים
+  // בתחילת כל סבב לפי המדינה שמחפשים באמת. אזור-הלחיצה הבלתי-נראה שלה פעיל תמיד (לא תלוי
+  // זום - קליק "מוצלח" גם בזום עולם זה בונוס לא-מזיק, כי הוא בלתי-נראה ולא יוצר עומס
+  // חזותי), אבל התווית הנראית מוצגת רק אחרי שהמשתמש/ת התקרב/ה מספיק (ר' updateHintLabel,
+  // נקרא מתוך applyViewBox) - בזום עולם היא נשארת מוסתרת לגמרי, בהתאם לדרישה מפורשת שהמפה
+  // לא תיראה "עמוסה" בסמנים מלאכותיים לפני שהם באמת נחוצים.
   const MIN_VISIBLE_MAP_SIZE = 3;
   const TINY_HIT_RADIUS = 2.4;
   const TINY_LABEL_FONT_DIVISOR = 90; // font-size = currentBox.w / זה, נמוך משמעותית מהתווית הזמנית (55) כדי שתישאר משנית
   const TINY_LABEL_MIN_FONT = 1.4;
   const TINY_LABEL_MAX_FONT = 11;
+  const HINT_REVEAL_ZOOM_FRACTION = 0.5; // התווית מוצגת רק כש-currentBox.w קטן מ-baseBox.w כפול זה (זום פנימה משמעותי)
 
   function elFor(id) {
     return svgEl ? svgEl.querySelector('[id="' + id + '"]') : null;
@@ -140,7 +150,7 @@ App.Map = (function () {
     currentBox = box;
     svgEl.setAttribute("viewBox", [box.x, box.y, box.w, box.h].join(" "));
     if (resetBtn) resetBtn.hidden = box.w >= baseBox.w * 0.98;
-    updateTinyLabelSizes();
+    updateHintLabel();
   }
 
   function clampBox(box) {
@@ -302,90 +312,91 @@ App.Map = (function () {
     return btn;
   }
 
-  // מדינות קטנות מדי לראייה/לחיצה (ר' MIN_VISIBLE_MAP_SIZE) מקבלות שני אלמנטים נפרדים,
-  // שניהם ממורכזים ב"מרכז החזותי" של הצורה האמיתית (אותה פונקציה ששכבת התוויות משתמשת
-  // בה): עיגול שקוף (fill="transparent" בכוונה, לא fill:none - אחרת לא תופס קליקים בכלל)
-  // בתור אזור-לחיצה מוגדל, ותווית טקסט קבועה עם שם המדינה. ה-id על עיגול הלחיצה זהה ל-id
-  // של הצורה המקורית (כפילות id נסבלת בדפדפנים - ניתוב הלחיצה קורא את ה-id ישירות מהיעד
-  // שנלחץ, וכל שאילתת querySelector-יחיד אחרת ב-elFor ממשיכה למצוא את הצורה האמיתית קודם
-  // כי היא מופיעה לפניו ב-DOM). התווית עצמה לא צריכה id/קליק - pointer-events:none על כל
-  // שכבת התוויות (ר' CSS) מעביר קליקים דרכה אל מה שמתחתיה.
-  function addTinyCountryMarkers() {
-    const markersLayer = document.createElementNS("http://www.w3.org/2000/svg", "g");
-    markersLayer.setAttribute("class", "tiny-markers");
-    const labelsG = document.createElementNS("http://www.w3.org/2000/svg", "g");
-    labelsG.setAttribute("class", "tiny-marker-labels");
-    // מחוברים ל-DOM *לפני* שמוסיפים תוויות בפנים - getBBox על טקסט (לצורך מניעת חפיפה
-    // למטה) דורש לרוב שהאלמנט יהיה מחובר למסמך המוצג, לא רק "בדרך" לשם.
-    svgEl.appendChild(markersLayer);
-    svgEl.appendChild(labelsG);
-    tinyMarkerLabelsLayer = labelsG;
-
-    // כמה מהמדינות הזעירות קרובות זו לזו במציאות (למשל דומיניקה/סנט לוסיה/סנט וינסנט/
-    // טרינידד בקריביים המזרחיים) - בלי טיפול בחפיפה, התוויות הקבועות שלהן ממש מצטלבות
-    // אות-על-אות בזום עולם ומתמזגות לטקסט בלתי קריא. לכל תווית שמתנגשת מנסים מיקום שני
-    // (מעל הנקודה במקום מתחתיה) לפני שמוותרים ומסתירים אותה - אף פעם לא רק מדללים/מקצרים,
-    // כי תווית מוסתרת לגמרי מבטלת את הסיבה שהיא בכלל קיימת. מערך נפרד מ-setLabel: אלה
-    // תוויות קבועות (לא מתאפסות ב-clearLabels), לא קשור לתוויות זמניות של מדינה שנבחרה.
-    const placedTinyLabelBoxes = [];
-    const LABEL_Y_OFFSETS = [TINY_HIT_RADIUS * 2.2, -TINY_HIT_RADIUS * 1.6];
-    // ממדדים את החפיפה בגודל-הפונט האמיתי שיוצג בזום הנוכחי (לא ברירת המחדל של הדפדפן) -
-    // אחרת בדיקת החפיפה תוצא לפי קנה מידה שגוי לגמרי. updateTinyLabelSizes בסוף הפונקציה
-    // רק מאשר מחדש את אותו חישוב (ומעדכן אותו מחדש בכל שינוי זום הבא).
-    const initialFontSize = Math.min(Math.max(currentBox.w / TINY_LABEL_FONT_DIVISOR, TINY_LABEL_MIN_FONT), TINY_LABEL_MAX_FONT);
-
-    function placeTinyLabel(id, center, text) {
-      for (const dy of LABEL_Y_OFFSETS) {
-        const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
-        label.setAttribute("x", center.x);
-        label.setAttribute("y", center.y + dy);
-        label.setAttribute("text-anchor", "middle");
-        label.setAttribute("class", "tiny-marker-label");
-        label.setAttribute("data-id", id);
-        label.setAttribute("font-size", initialFontSize);
-        label.textContent = text;
-        labelsG.appendChild(label);
-
-        const tb = label.getBBox();
-        const pad = tb.height * 0.2;
-        const paddedBox = { x: tb.x - pad, y: tb.y - pad, width: tb.width + pad * 2, height: tb.height + pad * 2 };
-        if (!placedTinyLabelBoxes.some((b) => rectsOverlap(b, paddedBox))) {
-          placedTinyLabelBoxes.push(paddedBox);
-          return;
-        }
-        label.remove();
-      }
-    }
-
-    svgEl.querySelectorAll(".country").forEach((node) => {
-      const box = node.getBBox();
-      if (Math.max(box.width, box.height) >= MIN_VISIBLE_MAP_SIZE) return;
-      const center = visualCenterFor(node, box);
-
-      const hitArea = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-      hitArea.setAttribute("id", node.id);
-      hitArea.setAttribute("data-id", node.id);
-      hitArea.setAttribute("class", "country tiny-marker");
-      hitArea.setAttribute("cx", center.x);
-      hitArea.setAttribute("cy", center.y);
-      hitArea.setAttribute("r", TINY_HIT_RADIUS);
-      hitArea.setAttribute("fill", "transparent");
-      markersLayer.appendChild(hitArea);
-
-      const country = COUNTRIES_BY_ID[node.id];
-      if (!country) return;
-      placeTinyLabel(node.id, center, country.name_he);
-    });
-    updateTinyLabelSizes();
+  // נקרא מ-render() כדי שיהיו שכבות ריקות מוכנות (מחוברות ל-DOM) לפני שמפעם/מצב כלשהו
+  // מבקש מדינת-רמז - setHintTarget רק ממלא/מרוקן אותן, לא יוצר אותן.
+  function ensureHintLayers() {
+    hintMarkerLayer = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    hintMarkerLayer.setAttribute("class", "tiny-markers");
+    hintLabelLayer = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    hintLabelLayer.setAttribute("class", "tiny-marker-labels");
+    svgEl.appendChild(hintMarkerLayer);
+    svgEl.appendChild(hintLabelLayer);
   }
 
-  // גודל הפונט של תוויות מדינה-זעירה חייב להתעדכן בכל שינוי זום (נקרא מתוך applyViewBox),
-  // לא רק פעם אחת ב-render - אחרת גודל שנקבע לפי זום-עולם נראה ענק אחרי focusCountry על
-  // מדינת-אי (זום הרבה יותר צר), בדיוק כמו שכל דבר אחר על המפה "מתנפח" ככל שמתקרבים.
-  function updateTinyLabelSizes() {
-    if (!tinyMarkerLabelsLayer || !currentBox) return;
+  // קובע איזו מדינה (אם בכלל) מקבלת כרגע אזור-לחיצה מוגדל + תווית-סיוע - נועד להיקרא ע"י
+  // מצב מדורג (guess.js/shapeguess.js) בתחילת כל סבב, עם המדינה שבאמת מתבקשים למצוא. אם
+  // id איננה קטנה מספיק כדי להצדיק סיוע (ר' MIN_VISIBLE_MAP_SIZE), לא נוצר כלום - הסיוע
+  // הזה נועד במפורש למדינות זעירות בלבד, לא לכל בחירה.
+  function setHintTarget(id) {
+    if (hintMarkerLayer) hintMarkerLayer.innerHTML = "";
+    if (hintLabelLayer) hintLabelLayer.innerHTML = "";
+    hintTargetId = null;
+    hintTargetCenter = null;
+    hintLabelForceHidden = false;
+    if (!id || !isTinyCountry(id)) return;
+
+    const node = elFor(id);
+    if (!node) return;
+    const box = node.getBBox();
+    const center = visualCenterFor(node, box);
+    hintTargetId = id;
+    hintTargetCenter = center;
+
+    // אזור-הלחיצה הבלתי-נראה תמיד פעיל (לא תלוי זום) - fill="transparent" בכוונה, לא
+    // fill:none, אחרת לא תופס קליקים בכלל. ה-id זהה לצורה האמיתית (כפילות id נסבלת
+    // בדפדפנים - ניתוב הלחיצה קורא את ה-id ישירות מהיעד שנלחץ, ו-elFor/bboxFor ממשיכים
+    // למצוא את הצורה האמיתית קודם כי היא מופיעה לפניו ב-DOM).
+    const hitArea = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    hitArea.setAttribute("id", id);
+    hitArea.setAttribute("data-id", id);
+    hitArea.setAttribute("class", "country tiny-marker");
+    hitArea.setAttribute("cx", center.x);
+    hitArea.setAttribute("cy", center.y);
+    hitArea.setAttribute("r", TINY_HIT_RADIUS);
+    hitArea.setAttribute("fill", "transparent");
+    hintMarkerLayer.appendChild(hitArea);
+
+    const country = COUNTRIES_BY_ID[id];
+    if (country) {
+      const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      label.setAttribute("x", center.x);
+      label.setAttribute("y", center.y + TINY_HIT_RADIUS * 2.2);
+      label.setAttribute("text-anchor", "middle");
+      label.setAttribute("class", "tiny-marker-label");
+      label.setAttribute("data-id", id);
+      label.textContent = country.name_he;
+      hintLabelLayer.appendChild(label);
+    }
+    updateHintLabel();
+  }
+
+  function clearHintTarget() {
+    setHintTarget(null);
+  }
+
+  // התווית מוצגת רק אחרי שמתקרבים מספיק (לא בזום עולם, כדי שהיא לא "עמוסה" על המפה לפני
+  // שהיא באמת נחוצה) וגם רק כשהמדינה עצמה בתוך התצוגה הנוכחית. נקרא מתוך applyViewBox בכל
+  // שינוי זום/גרירה - כולל זום ידני (פינץ'/גלגלת) וגם focusCountry האוטומטי של הרמז.
+  function updateHintLabel() {
+    if (!hintLabelLayer) return;
+    const label = hintLabelLayer.querySelector(".tiny-marker-label");
+    if (!label || !hintTargetCenter || !currentBox || !baseBox) return;
+
+    if (hintLabelForceHidden) {
+      label.style.display = "none";
+      return;
+    }
+    const zoomedInEnough = currentBox.w < baseBox.w * HINT_REVEAL_ZOOM_FRACTION;
+    const inView = hintTargetCenter.x >= currentBox.x && hintTargetCenter.x <= currentBox.x + currentBox.w
+      && hintTargetCenter.y >= currentBox.y && hintTargetCenter.y <= currentBox.y + currentBox.h;
+
+    if (!zoomedInEnough || !inView) {
+      label.style.display = "none";
+      return;
+    }
+    label.style.display = "";
     const size = Math.min(Math.max(currentBox.w / TINY_LABEL_FONT_DIVISOR, TINY_LABEL_MIN_FONT), TINY_LABEL_MAX_FONT);
-    tinyMarkerLabelsLayer.querySelectorAll(".tiny-marker-label").forEach((el) => el.setAttribute("font-size", size));
+    label.setAttribute("font-size", size);
   }
 
   // משתמש במקור הנסתר הקבוע (לא ב-svgEl האינטראקטיבי) כדי לתת תשובה נכונה גם אם נקרא
@@ -423,7 +434,9 @@ App.Map = (function () {
         node.classList.add("land-other");
       }
     });
-    addTinyCountryMarkers();
+    ensureHintLayers();
+    hintTargetId = null;
+    hintTargetCenter = null;
 
     activePointers.clear();
     dragStart = null;
@@ -472,21 +485,23 @@ App.Map = (function () {
     svgEl.querySelectorAll(".country").forEach((node) => {
       node.classList.remove("selected", "correct", "wrong", "neighbor");
     });
-    if (tinyMarkerLabelsLayer) {
-      tinyMarkerLabelsLayer.querySelectorAll(".tiny-marker-label").forEach((el) => el.classList.remove("tiny-marker-label-hidden"));
+    if (hintLabelForceHidden) {
+      hintLabelForceHidden = false;
+      updateHintLabel();
     }
   }
 
   function setState(id, state) {
-    // elsFor (לא רק elFor) כדי שגם עיגול-הסמן של מדינה זעירה (ר' addTinyCountryMarkers)
+    // elsFor (לא רק elFor) כדי שגם אזור-הלחיצה של מדינת-הרמז הזעירה (ר' setHintTarget)
     // יקבל את אותו צבע מצב כמו הצורה האמיתית - בגודל 0.2 יחידות של המלדיביים, הצבע על
     // הצורה עצמה כמעט ולא נראה, והסמן הוא בפועל מה שהשחקן רואה מגיב.
     elsFor(id).forEach((el) => el.classList.add(state));
     // selected/correct תמיד מגיעים ביחד עם קריאה ל-setLabel (התווית הזמנית, הגדולה
-    // והממוקמת נכון לפי הזום) - התווית הקבועה הקטנה הופכת למיותרת/כפולה באותו רגע, אז
-    // מסתירים אותה עד ה-clearStates הבא (למשל מעבר למדינה הבאה).
-    if ((state === "selected" || state === "correct") && tinyMarkerLabelsLayer) {
-      tinyMarkerLabelsLayer.querySelectorAll('.tiny-marker-label[data-id="' + id + '"]').forEach((el) => el.classList.add("tiny-marker-label-hidden"));
+    // והממוקמת נכון לפי הזום) - תווית-הרמז הקבועה הופכת למיותרת/כפולה באותו רגע, אז
+    // מסתירים אותה עד ה-clearStates הבא (מעבר לסבב/מדינה הבאה).
+    if ((state === "selected" || state === "correct") && id === hintTargetId) {
+      hintLabelForceHidden = true;
+      updateHintLabel();
     }
   }
 
@@ -623,5 +638,7 @@ App.Map = (function () {
     clearLabels,
     getSilhouetteSvg,
     isTinyCountry,
+    setHintTarget,
+    clearHintTarget,
   };
 })();

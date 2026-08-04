@@ -119,50 +119,60 @@ bugs, not speculative advice.
   Malta) filled the whole screen with no surrounding context.
 - **Audio**: don't add per-click/per-navigation sounds. Confirmed
   unwanted by the user once already.
-- **Tiny-country click markers** (`App.Map`'s `addTinyCountryMarkers`):
+- **Tiny-country click assist** (`App.Map`'s `setHintTarget`/`clearHintTarget`):
   countries under `MIN_VISIBLE_MAP_SIZE` (map viewBox units — currently
   ~12 countries, e.g. Maldives, Malta, Singapore) are too small to see or
-  click reliably. Two visual approaches were tried and rejected before the
-  current one: a plain circle styled like `.country` fill read as an actual
-  (wrong) piece of geography; a small map-pin icon looked fine zoomed in,
-  but at world zoom its constant-screen-width stroke
-  (`vector-effect: non-scaling-stroke`) swallowed the icon's tiny fill area
-  and it just looked like an unexplained dark speck. **Current approach**:
-  no icon at all. Each tiny country gets (1) an invisible
-  `<circle class="country tiny-marker" fill="transparent">` at its visual
-  center as an enlarged click target — `fill="transparent"`, not
-  `fill: none`, since `none` stops it from receiving clicks at all — and
-  (2) a permanent small text label (`.tiny-marker-label`, muted/lighter
-  weight than the normal on-selection `.country-label`) showing the
-  country's name. Text can't be mistaken for geography and doesn't suffer
-  the icon-shrinks-to-a-dot problem, since it's sized directly rather than
-  via a stroke that competes with a tiny fill area. The hit-circle carries
-  the **same `id`** as the real `<path>` (duplicate ids across two elements
-  — tolerated by browsers, and deliberate: `elFor`/`bboxFor` rely on
-  `querySelector` returning the *first* match in document order, which is
-  always the real path since the marker is appended later, so zoom/label
-  placement stay based on true geometry). Because of this,
+  click reliably. **Three earlier versions were tried and rejected**,
+  all for the same underlying reason — each decorated *all ~12* tiny
+  countries permanently and globally, regardless of whether any of them
+  were relevant to what the player was currently doing: a plain circle
+  styled like `.country` fill read as an actual (wrong) piece of geography;
+  a small map-pin icon looked fine zoomed in, but at world zoom its
+  constant-screen-width stroke (`vector-effect: non-scaling-stroke`)
+  swallowed the icon's tiny fill area and looked like an unexplained dark
+  speck; a permanent text label per country fixed the "looks like
+  geography" problem but was fixed-size (so it visually ballooned once
+  `focusCountry` zoomed in tight — nothing to pad the view with for an
+  island with no neighbors) and stayed visible even after selection,
+  redundantly stacking with the mode's own on-selection label. The common
+  complaint through all three: the map looked "prominent"/cluttered with
+  artificial decoration even when nothing tiny was actually being searched
+  for.
+  **Current approach**: no global decoration at all. `App.Map` tracks at
+  most **one** "hint target" at a time (`hintTargetId`) — graded modes
+  call `App.Map.setHintTarget(country.id)` at the start of each round with
+  *that round's actual answer* (`guess.js`'s `nextRound()`; `shapeguess.js`
+  never needs to, since it already excludes tiny countries from its pool
+  entirely via `isTinyCountry`). If the id isn't tiny, `setHintTarget` is a
+  no-op. Explore mode never sets one — tiny countries there have no special
+  treatment, matching the original report which was specifically about
+  "guessing mode."
+  For the current hint target (if any), two independent things exist: (1)
+  an invisible `<circle class="country tiny-marker" fill="transparent">`
+  enlarged click target at its visual center — always active regardless of
+  zoom, since it's invisible and costs nothing visually — `fill="transparent"`,
+  not `fill: none`, since `none` stops it receiving clicks entirely; and
+  (2) a small text label (`.tiny-marker-label`), which stays hidden
+  (`display:none`, `updateHintLabel`) until the player has zoomed in close
+  (`currentBox.w < baseBox.w * HINT_REVEAL_ZOOM_FRACTION`) **and** the
+  target is actually within the current viewBox — checked on every
+  `applyViewBox` call, i.e. every manual pinch/scroll zoom and every
+  `focusCountry` auto-zoom from the hint system. Font-size is also
+  recomputed there (not fixed), the same way `setLabel`'s temporary
+  on-selection label already does it, so it can't balloon at tight zoom
+  the way the old fixed-size version did. The label additionally
+  force-hides once the target's state becomes `selected`/`correct`
+  (`setState`, cleared by `clearStates`) to avoid doubling up with the
+  mode's own on-selection label. The hit-circle carries the **same `id`**
+  as the real `<path>` (duplicate ids across two elements — tolerated by
+  browsers, and deliberate: `elFor`/`bboxFor` rely on `querySelector`
+  returning the *first* match in document order, which is always the real
+  path since the hint layers are appended once, empty, in `render()`, and
+  only ever populated afterward by `setHintTarget`). Because of this,
   `setState`/`removeState` use `elsFor` (`querySelectorAll`, plural) so a
   state class like `.correct`/`.wrong` reaches *both* the hit-circle (which
   only then becomes visibly colored, as feedback) and the invisible-at-that-
-  size real path — if you ever revert to a singular/first-match query
-  there, tiny countries will stop visibly reacting to selection.
-  `App.Map.isTinyCountry(id)` exposes the same size check for other modes
-  (`shapeguess.js` uses it to exclude these countries from "guess by shape"
-  entirely, since there's no recognizable silhouette at that size).
-  **The label's `font-size` is NOT a fixed number** — it's recomputed on
-  every `applyViewBox` call (`updateTinyLabelSizes`, driven by
-  `currentBox.w`), the same way `setLabel`'s temporary on-selection label
-  already does. A fixed size was tried first and looked reasonable at
-  world zoom, but `focusCountry` zooms in *much* tighter for an island
-  nation with no neighbors (there's nothing to pad the view with), and a
-  fixed-size label — living in the same coordinate space as the map — grew
-  along with everything else and ended up dominating the whole visible
-  map. The label also **hides itself** once that country's state becomes
-  `selected`/`correct` (`setState`, reset in `clearStates`) — those states
-  are always paired with a `setLabel` call elsewhere (explore.js/guess.js/
-  shapeguess.js), so at that point the small permanent label is redundant
-  with the properly-sized temporary one and just doubles up.
+  size real path.
 
 ## The world map data (`assets/world-map.svg` / `.js`)
 
