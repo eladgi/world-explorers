@@ -1,13 +1,66 @@
 # Map regeneration tools
 
-The scripts used to upgrade `assets/world-map.svg`'s country shapes from the
+Not part of the shipped game — these are offline, one-time (or occasional)
+generation scripts. Nothing here is loaded by `index.html`.
+
+## Current approach: `build_from_amcharts.py` (amCharts SVG Map Generator)
+
+`assets/world-map.svg` is currently built from an SVG exported by amCharts'
+own generator (https://dojo.amcharts.com/svg-map-generator/, World High
+detail, Robinson projection), not derived from raw Natural Earth data. This
+replaced the from-scratch Natural Earth pipeline documented in the rest of
+this file (kept below — still real, working code, and the bug history is
+worth reading if you ever need a from-scratch pipeline again) after that
+pipeline's own custom projection/simplification/border-buffering math kept
+being the source of new bugs (most recently: West Bank rendering inside
+Jordan's territory, from an over-aggressive border-gap-closing buffer — see
+git history). amCharts' generator does its own correct projection math and
+already ships pre-simplified, reasonably-sized per-country paths, so
+`build_from_amcharts.py`'s job is much smaller: parse their export, keep
+only the 211 ids this game uses, and patch in the one territory they don't
+have (Canary Islands) by re-fitting it from the currently-committed map.
+
+**Regenerating:**
+1. Open https://dojo.amcharts.com/svg-map-generator/
+2. Set **Map = World (High)**, **Proj = Robinson**
+3. Click **Download SVG**, save it as `.work/amcharts_robinson_worldHigh.svg`
+   (this step is a manual browser interaction — the generator doesn't expose
+   a scriptable/curl-able export endpoint)
+4. `python build_from_amcharts.py` → writes `.work/world-map-OUTPUT.svg`
+5. `python verify_map.py .work/world-map-OUTPUT.svg` (same checks as before
+   — structural validity, self-overlap, border continuity across all real
+   neighbor pairs from `js/data/countries.js`)
+6. Visually check in a browser before replacing `assets/world-map.svg` —
+   same standing lesson as always, an automated check passing is necessary
+   but not sufficient.
+
+**Known limitation**: amCharts' own export uses whatever internal
+scale/translate their Robinson implementation picks — this script does not
+control or need to know it, it just consumes their output coordinates
+as-is. If a future export uses a very different scale, re-check that
+`TINY_MARKER_RADIUS` in `js/worldmap.js` (the tiny-country click-target
+markers) still looks reasonable relative to the new viewBox.
+
+A different, much less safe approach was tried and abandoned first: amCharts
+also ships a static pre-built Mercator-projected SVG
+(`ammap3/ammap/maps/svg/worldHigh.svg`) with reasonable per-country detail,
+but reverse-engineering its exact undocumented projection parameters (to
+re-project into Robinson ourselves) produced systematically wrong latitudes
+for large countries once cross-checked against real-world reference points
+— not trustworthy enough to build a whole map on. The interactive generator
+sidesteps this entirely by doing correct projection math itself.
+
+---
+
+## Previous approach: from-scratch Natural Earth pipeline (historical)
+
+The scripts below upgraded `assets/world-map.svg`'s country shapes from the
 original ~20-vertex-per-small-country simplification to detail sourced from
 [Natural Earth](https://www.naturalearthdata.com/) 1:50m data, while keeping
 everything working with the game's existing coordinate space, zoom logic,
-and the 32 non-gameplay "land-other" territories.
-
-Not part of the shipped game — these are offline, one-time (or occasional)
-generation scripts. Nothing here is loaded by `index.html`.
+and the 32 non-gameplay "land-other" territories. No longer the active
+pipeline (see above), but left in place — it's real, tested code, and the
+bug history is a genuinely useful read before touching map data by hand.
 
 ## Why this exists / what it actually does
 
