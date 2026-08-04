@@ -150,6 +150,19 @@ bugs, not speculative advice.
   `App.Map.isTinyCountry(id)` exposes the same size check for other modes
   (`shapeguess.js` uses it to exclude these countries from "guess by shape"
   entirely, since there's no recognizable silhouette at that size).
+  **The label's `font-size` is NOT a fixed number** — it's recomputed on
+  every `applyViewBox` call (`updateTinyLabelSizes`, driven by
+  `currentBox.w`), the same way `setLabel`'s temporary on-selection label
+  already does. A fixed size was tried first and looked reasonable at
+  world zoom, but `focusCountry` zooms in *much* tighter for an island
+  nation with no neighbors (there's nothing to pad the view with), and a
+  fixed-size label — living in the same coordinate space as the map — grew
+  along with everything else and ended up dominating the whole visible
+  map. The label also **hides itself** once that country's state becomes
+  `selected`/`correct` (`setState`, reset in `clearStates`) — those states
+  are always paired with a `setLabel` call elsewhere (explore.js/guess.js/
+  shapeguess.js), so at that point the small permanent label is redundant
+  with the properly-sized temporary one and just doubles up.
 
 ## The world map data (`assets/world-map.svg` / `.js`)
 

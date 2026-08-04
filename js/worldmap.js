@@ -17,6 +17,7 @@ App.Map = (function () {
   let labelsLayer = null;
   let placedLabelBoxes = []; // תיבות תוחמות של תוויות שכבר הוצגו בסבב הנוכחי, למניעת חפיפה
   let silhouetteSvgEl = null; // עותק נסתר קבוע של המפה, רק לצורך מדידת bbox וחילוץ נתיבים (d)
+  let tinyMarkerLabelsLayer = null; // תוויות הטקסט הקבועות של מדינות זעירות (ר' addTinyCountryMarkers)
 
   const activePointers = new Map();
   let dragStart = null;
@@ -38,10 +39,15 @@ App.Map = (function () {
   // כמו פיסת יבשה אמיתית ומטעה; סיכת-מפה וקטורית עם מתאר כהה, בזום עולם (שבו הסמן קטן
   // מאוד), ה-stroke הקבוע-רוחב (vector-effect:non-scaling-stroke) בלע את כל השטח הפנימי
   // הקטן - נראה כמו כתם/נקודה כהה בלתי-מוסברת, לא כמו סיכה. טקסט (שם המדינה) לא סובל
-  // מהבעיה הזו - הוא תמיד קריא כטקסט, לא נראה כמו גיאוגרפיה, ולא "בולע" את עצמו בזום קטן.
+  // מבעיית ה"בליעה" הזו, אבל עדיין חייב להתעדכן דינמית לפי הזום הנוכחי (ר'
+  // updateTinyLabelSizes, נקרא מתוך applyViewBox) - גודל פונט קבוע ביחידות ה-viewBox
+  // נראה סביר בזום עולם אבל הופך לענק וממש מסתיר את המפה לאחר focusCountry על מדינת-אי
+  // זעירה (שמתמקד בקנה מידה הרבה יותר צר), בדיוק כמו שכל דבר אחר על המפה "מתנפח" בזום.
   const MIN_VISIBLE_MAP_SIZE = 3;
   const TINY_HIT_RADIUS = 2.4;
-  const TINY_LABEL_FONT_SIZE = 9;
+  const TINY_LABEL_FONT_DIVISOR = 90; // font-size = currentBox.w / זה, נמוך משמעותית מהתווית הזמנית (55) כדי שתישאר משנית
+  const TINY_LABEL_MIN_FONT = 1.4;
+  const TINY_LABEL_MAX_FONT = 11;
 
   function elFor(id) {
     return svgEl ? svgEl.querySelector('[id="' + id + '"]') : null;
@@ -134,6 +140,7 @@ App.Map = (function () {
     currentBox = box;
     svgEl.setAttribute("viewBox", [box.x, box.y, box.w, box.h].join(" "));
     if (resetBtn) resetBtn.hidden = box.w >= baseBox.w * 0.98;
+    updateTinyLabelSizes();
   }
 
   function clampBox(box) {
@@ -312,6 +319,7 @@ App.Map = (function () {
     // למטה) דורש לרוב שהאלמנט יהיה מחובר למסמך המוצג, לא רק "בדרך" לשם.
     svgEl.appendChild(markersLayer);
     svgEl.appendChild(labelsG);
+    tinyMarkerLabelsLayer = labelsG;
 
     // כמה מהמדינות הזעירות קרובות זו לזו במציאות (למשל דומיניקה/סנט לוסיה/סנט וינסנט/
     // טרינידד בקריביים המזרחיים) - בלי טיפול בחפיפה, התוויות הקבועות שלהן ממש מצטלבות
@@ -320,19 +328,21 @@ App.Map = (function () {
     // כי תווית מוסתרת לגמרי מבטלת את הסיבה שהיא בכלל קיימת. מערך נפרד מ-setLabel: אלה
     // תוויות קבועות (לא מתאפסות ב-clearLabels), לא קשור לתוויות זמניות של מדינה שנבחרה.
     const placedTinyLabelBoxes = [];
-    const LABEL_Y_OFFSETS = [
-      TINY_HIT_RADIUS + TINY_LABEL_FONT_SIZE * 0.85,
-      -(TINY_HIT_RADIUS + TINY_LABEL_FONT_SIZE * 0.35),
-    ];
+    const LABEL_Y_OFFSETS = [TINY_HIT_RADIUS * 2.2, -TINY_HIT_RADIUS * 1.6];
+    // ממדדים את החפיפה בגודל-הפונט האמיתי שיוצג בזום הנוכחי (לא ברירת המחדל של הדפדפן) -
+    // אחרת בדיקת החפיפה תוצא לפי קנה מידה שגוי לגמרי. updateTinyLabelSizes בסוף הפונקציה
+    // רק מאשר מחדש את אותו חישוב (ומעדכן אותו מחדש בכל שינוי זום הבא).
+    const initialFontSize = Math.min(Math.max(currentBox.w / TINY_LABEL_FONT_DIVISOR, TINY_LABEL_MIN_FONT), TINY_LABEL_MAX_FONT);
 
-    function placeTinyLabel(center, text) {
+    function placeTinyLabel(id, center, text) {
       for (const dy of LABEL_Y_OFFSETS) {
         const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
         label.setAttribute("x", center.x);
         label.setAttribute("y", center.y + dy);
         label.setAttribute("text-anchor", "middle");
         label.setAttribute("class", "tiny-marker-label");
-        label.setAttribute("font-size", TINY_LABEL_FONT_SIZE);
+        label.setAttribute("data-id", id);
+        label.setAttribute("font-size", initialFontSize);
         label.textContent = text;
         labelsG.appendChild(label);
 
@@ -364,8 +374,18 @@ App.Map = (function () {
 
       const country = COUNTRIES_BY_ID[node.id];
       if (!country) return;
-      placeTinyLabel(center, country.name_he);
+      placeTinyLabel(node.id, center, country.name_he);
     });
+    updateTinyLabelSizes();
+  }
+
+  // גודל הפונט של תוויות מדינה-זעירה חייב להתעדכן בכל שינוי זום (נקרא מתוך applyViewBox),
+  // לא רק פעם אחת ב-render - אחרת גודל שנקבע לפי זום-עולם נראה ענק אחרי focusCountry על
+  // מדינת-אי (זום הרבה יותר צר), בדיוק כמו שכל דבר אחר על המפה "מתנפח" ככל שמתקרבים.
+  function updateTinyLabelSizes() {
+    if (!tinyMarkerLabelsLayer || !currentBox) return;
+    const size = Math.min(Math.max(currentBox.w / TINY_LABEL_FONT_DIVISOR, TINY_LABEL_MIN_FONT), TINY_LABEL_MAX_FONT);
+    tinyMarkerLabelsLayer.querySelectorAll(".tiny-marker-label").forEach((el) => el.setAttribute("font-size", size));
   }
 
   // משתמש במקור הנסתר הקבוע (לא ב-svgEl האינטראקטיבי) כדי לתת תשובה נכונה גם אם נקרא
@@ -452,6 +472,9 @@ App.Map = (function () {
     svgEl.querySelectorAll(".country").forEach((node) => {
       node.classList.remove("selected", "correct", "wrong", "neighbor");
     });
+    if (tinyMarkerLabelsLayer) {
+      tinyMarkerLabelsLayer.querySelectorAll(".tiny-marker-label").forEach((el) => el.classList.remove("tiny-marker-label-hidden"));
+    }
   }
 
   function setState(id, state) {
@@ -459,6 +482,12 @@ App.Map = (function () {
     // יקבל את אותו צבע מצב כמו הצורה האמיתית - בגודל 0.2 יחידות של המלדיביים, הצבע על
     // הצורה עצמה כמעט ולא נראה, והסמן הוא בפועל מה שהשחקן רואה מגיב.
     elsFor(id).forEach((el) => el.classList.add(state));
+    // selected/correct תמיד מגיעים ביחד עם קריאה ל-setLabel (התווית הזמנית, הגדולה
+    // והממוקמת נכון לפי הזום) - התווית הקבועה הקטנה הופכת למיותרת/כפולה באותו רגע, אז
+    // מסתירים אותה עד ה-clearStates הבא (למשל מעבר למדינה הבאה).
+    if ((state === "selected" || state === "correct") && tinyMarkerLabelsLayer) {
+      tinyMarkerLabelsLayer.querySelectorAll('.tiny-marker-label[data-id="' + id + '"]').forEach((el) => el.classList.add("tiny-marker-label-hidden"));
+    }
   }
 
   function removeState(id, state) {
