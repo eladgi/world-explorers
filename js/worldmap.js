@@ -34,7 +34,12 @@ App.Map = (function () {
   // לחיצה גדול יותר. אותו סף משמש גם לסינון מצב "נחשו לפי הצורה" (shapeguess.js, דרך
   // isTinyCountry) - בגודל כזה אין שום מידע צורני שניתן לזהות ממנו ממילא.
   const MIN_VISIBLE_MAP_SIZE = 3;
-  const TINY_MARKER_RADIUS = 1.8;
+  // צורת "סיכת מפה" קטנה בקואורדינטות מקומיות - החוד ב-(0,0) נוגע במיקום המדויק, הגוף
+  // צף מעליו. מכוונת בכל מופע ע"י transform=translate+scale (ר' addTinyCountryMarkers).
+  // צורה גיאומטרית מכוונת (לא עיגול צבוע כמו מדינה אמיתית, לא אימוג'י) כדי שאי אפשר יהיה
+  // לבלבל אותה עם צורת מדינה אמיתית על המפה - נוסה עיגול קודם וזוהה כמטעה.
+  const TINY_MARKER_PATH = "M0,0 L-0.45,-0.75 L-0.35,-1.5 L0,-1.8 L0.35,-1.5 L0.45,-0.75 Z";
+  const TINY_MARKER_SCALE = 1.3;
 
   function elFor(id) {
     return svgEl ? svgEl.querySelector('[id="' + id + '"]') : null;
@@ -288,11 +293,11 @@ App.Map = (function () {
     return btn;
   }
 
-  // מדינות קטנות מדי לראייה/לחיצה (ר' MIN_VISIBLE_MAP_SIZE) מקבלות עיגול-סמן מלאכותי
-  // בגודל קבוע, ממורכז ב"מרכז החזותי" של הצורה האמיתית (אותה פונקציה ששכבת התוויות
-  // משתמשת בה). ה-id על הסמן זהה ל-id של הצורה המקורית (כפילות id נסבלת בדפדפנים -
-  // ניתוב הלחיצה קורא את ה-id ישירות מהיעד שנלחץ, וכל שאילתת querySelector-יחיד אחרת
-  // ב-elFor ממשיכה למצוא את הצורה האמיתית קודם כי היא מופיעה לפניו ב-DOM).
+  // מדינות קטנות מדי לראייה/לחיצה (ר' MIN_VISIBLE_MAP_SIZE) מקבלות סיכת-מפה מלאכותית
+  // קטנה, ממורכזת (בחוד שלה) ב"מרכז החזותי" של הצורה האמיתית (אותה פונקציה ששכבת
+  // התוויות משתמשת בה). ה-id על הסמן זהה ל-id של הצורה המקורית (כפילות id נסבלת
+  // בדפדפנים - ניתוב הלחיצה קורא את ה-id ישירות מהיעד שנלחץ, וכל שאילתת querySelector-יחיד
+  // אחרת ב-elFor ממשיכה למצוא את הצורה האמיתית קודם כי היא מופיעה לפניו ב-DOM).
   function addTinyCountryMarkers() {
     const markersLayer = document.createElementNS("http://www.w3.org/2000/svg", "g");
     markersLayer.setAttribute("class", "tiny-markers");
@@ -300,14 +305,13 @@ App.Map = (function () {
       const box = node.getBBox();
       if (Math.max(box.width, box.height) >= MIN_VISIBLE_MAP_SIZE) return;
       const center = visualCenterFor(node, box);
-      const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-      circle.setAttribute("id", node.id);
-      circle.setAttribute("data-id", node.id);
-      circle.setAttribute("class", "country tiny-marker");
-      circle.setAttribute("cx", center.x);
-      circle.setAttribute("cy", center.y);
-      circle.setAttribute("r", TINY_MARKER_RADIUS);
-      markersLayer.appendChild(circle);
+      const marker = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      marker.setAttribute("id", node.id);
+      marker.setAttribute("data-id", node.id);
+      marker.setAttribute("class", "country tiny-marker");
+      marker.setAttribute("d", TINY_MARKER_PATH);
+      marker.setAttribute("transform", "translate(" + center.x + "," + center.y + ") scale(" + TINY_MARKER_SCALE + ")");
+      markersLayer.appendChild(marker);
     });
     svgEl.appendChild(markersLayer);
   }

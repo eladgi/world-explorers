@@ -578,6 +578,10 @@ main#app { flex: 1; width: 100%; }
 .country.wrong { fill: var(--error); animation: shake .4s; }
 .country.neighbor { fill: #7fd8cf; }
 
+/* סיכת-מפה למדינות זעירות מדי לראייה (ר' worldmap.js addTinyCountryMarkers) - מתאר כהה
+   ולא הצבע הרך של גבולות מדינה רגילים, כדי שתיקרא בבירור כסמן ולא כטריטוריה על המפה. */
+.tiny-marker { stroke: var(--ink); stroke-width: .9; }
+
 .land-other {
   fill: #dfe6e0;
   stroke: #f4fbf3;
